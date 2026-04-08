@@ -54,9 +54,10 @@ service cloud.firestore {
     // Fields:
     //   - authorId: string (required)
     //   - authorName: string (required)
+    //   - authorPhoto: string (optional)
     //   - content: string (required)
-    //   - likesCount: number (required)
-    //   - commentsCount: number (required)
+    //   - likedBy: list of strings (required)
+    //   - comments: list of objects (required)
     //   - createdAt: timestamp (required)
     //
     // Collection: communityPosts/{postId}/comments
@@ -122,7 +123,7 @@ service cloud.firestore {
     }
 
     function isValidBook(data) {
-      return hasOnlyAllowedFields(['title', 'author', 'description', 'price', 'sellerId', 'sellerName', 'imageUrl', 'status', 'condition', 'type', 'createdAt']) &&
+      return hasOnlyAllowedFields(['title', 'author', 'description', 'price', 'sellerId', 'sellerName', 'imageUrl', 'backCoverUrl', 'status', 'condition', 'type', 'createdAt']) &&
              validStringLength('title', 1, 200) &&
              validStringLength('author', 1, 100) &&
              (!('description' in data) || validStringLength('description', 0, 2000)) &&
@@ -130,6 +131,7 @@ service cloud.firestore {
              validStringLength('sellerId', 1, 100) &&
              validStringLength('sellerName', 1, 100) &&
              (!('imageUrl' in data) || data.imageUrl is string) &&
+             (!('backCoverUrl' in data) || data.backCoverUrl is string) &&
              data.status in ['available', 'sold', 'donated', 'hidden'] &&
              data.condition in ['new', 'like-new', 'good', 'fair', 'poor'] &&
              data.type in ['sale', 'donation'] &&
@@ -154,12 +156,13 @@ service cloud.firestore {
     }
 
     function isValidCommunityPost(data) {
-      return hasOnlyAllowedFields(['authorId', 'authorName', 'content', 'likesCount', 'commentsCount', 'createdAt']) &&
+      return hasOnlyAllowedFields(['authorId', 'authorName', 'authorPhoto', 'content', 'likedBy', 'comments', 'createdAt']) &&
              validStringLength('authorId', 1, 100) &&
              validStringLength('authorName', 1, 100) &&
+             (!('authorPhoto' in data) || data.authorPhoto == null || data.authorPhoto is string) &&
              validStringLength('content', 1, 5000) &&
-             data.likesCount is number && data.likesCount >= 0 &&
-             data.commentsCount is number && data.commentsCount >= 0 &&
+             data.likedBy is list &&
+             data.comments is list &&
              data.createdAt is timestamp;
     }
 
@@ -250,15 +253,15 @@ service cloud.firestore {
                     request.resource.data.authorId == request.auth.uid;
                     
       allow update: if isAuthenticated() && 
-                    isValidCommunityPost(request.resource.data) &&
                     (
                       // Author can update content
-                      (request.resource.data.authorId == resource.data.authorId && request.auth.uid == resource.data.authorId) ||
-                      // Anyone can update likesCount or commentsCount (atomic updates)
-                      (request.resource.data.authorId == resource.data.authorId && 
-                       request.resource.data.authorName == resource.data.authorName &&
-                       request.resource.data.content == resource.data.content &&
-                       request.resource.data.createdAt == resource.data.createdAt)
+                      (request.auth.uid == resource.data.authorId && 
+                       request.resource.data.diff(resource.data).affectedKeys().hasOnly(['content']) &&
+                       validStringLength('content', 1, 5000)) ||
+                      // Anyone can update likedBy or comments (atomic updates)
+                      (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likedBy', 'comments']) &&
+                       (!('likedBy' in request.resource.data) || request.resource.data.likedBy is list) &&
+                       (!('comments' in request.resource.data) || request.resource.data.comments is list))
                     );
                     
       allow delete: if isAuthenticated() && resource.data.authorId == request.auth.uid;

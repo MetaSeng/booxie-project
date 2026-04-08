@@ -27,6 +27,7 @@
         "sellerId": { "type": "string" },
         "sellerName": { "type": "string" },
         "imageUrl": { "type": "string" },
+        "backCoverUrl": { "type": "string" },
         "status": { "type": "string", "enum": ["available", "sold", "donated", "hidden"] },
         "condition": { "type": "string", "enum": ["new", "like-new", "good", "fair", "poor"] },
         "type": { "type": "string", "enum": ["sale", "donation"] },

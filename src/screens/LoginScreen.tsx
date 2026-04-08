@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { signInWithGoogle } from '../firebase';
-import { BookHeart, User, Mail, Lock, ArrowLeft } from 'lucide-react';
+import { User, Mail, Lock, ArrowLeft } from 'lucide-react';
+import BooxieLogo from '../components/BooxieLogo';
 
 export default function LoginScreen() {
   const navigate = useNavigate();
@@ -30,7 +31,7 @@ export default function LoginScreen() {
     <div className="min-h-screen bg-[#F8FCF9] flex flex-col relative font-sans">
       {/* Back Button */}
       <button 
-        onClick={() => navigate(-1)} 
+        onClick={() => navigate('/welcome')} 
         className="absolute top-4 left-4 mt-6 p-2 rounded-full hover:bg-gray-100 transition-colors z-10"
       >
         <ArrowLeft className="w-6 h-6 text-gray-800" />
@@ -41,8 +42,7 @@ export default function LoginScreen() {
         {/* Top Section: Mascot & App Name */}
         <div className="flex flex-col items-center mb-8">
           <div className="w-32 h-32 bg-[#E6F4EA] rounded-full flex items-center justify-center mb-4 shadow-inner relative overflow-hidden border-4 border-white">
-            {/* Placeholder for the Bunny Mascot */}
-            <BookHeart className="w-16 h-16 text-[#007A5A]" />
+            <BooxieLogo className="w-24 h-24" />
           </div>
           <h1 className="text-4xl font-extrabold text-[#007A5A] tracking-tight">Booxie</h1>
         </div>

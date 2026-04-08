@@ -1,9 +1,13 @@
 import React, { useEffect, useState } from 'react';
-import { collection, query, onSnapshot, where } from 'firebase/firestore';
+import { collection, query, onSnapshot, where, doc, getDoc, setDoc, deleteDoc } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../firebase';
 import { useAuth } from '../context/AuthContext';
-import { BookOpen, Search, Heart, Star, ChevronRight, MessageCircle } from 'lucide-react';
+import { useCart } from '../context/CartContext';
+import { BookOpen, Search, Heart, Star, ChevronRight, MessageCircle, Sparkles, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { GoogleGenAI } from '@google/genai';
+
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 interface BookListing {
   id: string;
@@ -28,11 +32,27 @@ const CATEGORIES = [
 
 export default function HomeScreen() {
   const [books, setBooks] = useState<BookListing[]>([]);
+  const [favorites, setFavorites] = useState<string[]>([]);
   const { user } = useAuth();
+  const { addToCart } = useCart();
   const navigate = useNavigate();
 
   useEffect(() => {
     if (!user) return;
+
+    // Fetch favorites
+    const fetchFavorites = async () => {
+      try {
+        const favRef = doc(db, 'users', user.uid);
+        const favSnap = await getDoc(favRef);
+        if (favSnap.exists() && favSnap.data().favorites) {
+          setFavorites(favSnap.data().favorites);
+        }
+      } catch (error) {
+        console.error("Error fetching favorites:", error);
+      }
+    };
+    fetchFavorites();
 
     let q = query(
       collection(db, 'books'),
@@ -58,6 +78,26 @@ export default function HomeScreen() {
 
     return () => unsubscribe();
   }, [user]);
+
+  const toggleFavorite = async (e: React.MouseEvent, bookId: string) => {
+    e.stopPropagation();
+    if (!user) return;
+
+    const newFavorites = favorites.includes(bookId)
+      ? favorites.filter(id => id !== bookId)
+      : [...favorites, bookId];
+
+    setFavorites(newFavorites);
+
+    try {
+      const userRef = doc(db, 'users', user.uid);
+      await setDoc(userRef, { favorites: newFavorites }, { merge: true });
+    } catch (error) {
+      console.error("Error updating favorites:", error);
+      // Revert on error
+      setFavorites(favorites);
+    }
+  };
 
   // Use some mock books if empty to show the design
   const displayBooks = books.length > 0 ? books : [
@@ -98,26 +138,35 @@ export default function HomeScreen() {
       <div className="mb-8">
         <div className="flex justify-between items-center mb-4">
           <h3 className="font-bold text-gray-900">Book categories</h3>
-          <button className="text-[#006A4E] text-sm font-medium">View all</button>
+          <button onClick={() => navigate('/search')} className="text-[#006A4E] text-sm font-medium">View all</button>
         </div>
         <div className="flex gap-4 overflow-x-auto pb-2 no-scrollbar -mx-4 px-4">
           {CATEGORIES.map(cat => (
-            <div key={cat.id} className="flex flex-col items-center gap-2 min-w-[72px]">
-              <div className="w-16 h-16 rounded-full border border-gray-200 bg-white flex items-center justify-center text-2xl shadow-sm">
+            <div 
+              key={cat.id} 
+              onClick={() => navigate('/search')}
+              className="flex flex-col items-center gap-2 min-w-[72px] cursor-pointer"
+            >
+              <div className="w-16 h-16 rounded-full border border-gray-200 bg-white flex items-center justify-center text-2xl shadow-sm hover:border-[#006A4E] transition-colors">
                 {cat.icon}
               </div>
               <span className="text-xs text-gray-700 text-center leading-tight">{cat.label}</span>
             </div>
           ))}
-          <div className="flex flex-col items-center justify-center min-w-[40px]">
-            <ChevronRight className="w-6 h-6 text-gray-400" />
+          <div 
+            onClick={() => navigate('/search')}
+            className="flex flex-col items-center justify-center min-w-[40px] cursor-pointer"
+          >
+            <ChevronRight className="w-6 h-6 text-gray-400 hover:text-[#006A4E] transition-colors" />
           </div>
         </div>
       </div>
 
       {/* Best-selling books */}
       <div className="mb-8">
-        <h3 className="font-bold text-gray-900 mb-4">Best-selling books</h3>
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="font-bold text-gray-900">Best-selling books</h3>
+        </div>
         <div className="grid grid-cols-2 gap-4">
           {displayBooks.map(book => (
             <div 
@@ -125,11 +174,14 @@ export default function HomeScreen() {
               onClick={() => navigate(`/book/${book.id}`)}
               className="bg-white rounded-2xl p-3 shadow-sm border border-gray-100 cursor-pointer hover:shadow-md transition-shadow flex flex-col relative"
             >
-              <button className="absolute top-4 right-4 z-10 w-8 h-8 bg-white rounded-full flex items-center justify-center shadow-sm">
-                <Heart className="w-4 h-4 text-gray-400" />
+              <button 
+                onClick={(e) => toggleFavorite(e, book.id)}
+                className="absolute top-4 right-4 z-10 w-8 h-8 bg-white rounded-full flex items-center justify-center shadow-sm"
+              >
+                <Heart className={`w-4 h-4 ${favorites.includes(book.id) ? 'text-red-500 fill-red-500' : 'text-gray-400'}`} />
               </button>
               
-              <div className="aspect-[4/3] bg-gray-50 rounded-xl mb-3 overflow-hidden">
+              <div className="aspect-[3/4] w-full bg-gray-50 rounded-xl mb-3 overflow-hidden shrink-0">
                 {book.imageUrl ? (
                   <img src={book.imageUrl} alt={book.title} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                 ) : (
@@ -146,11 +198,10 @@ export default function HomeScreen() {
                   {book.condition}
                 </span>
                 <div className="flex items-center gap-0.5">
-                  {[1, 2, 3, 4].map(i => (
+                  {[1, 2, 3, 4, 5].map(i => (
                     <Star key={i} className="w-2.5 h-2.5 text-[#FFB800] fill-[#FFB800]" />
                   ))}
-                  <Star className="w-2.5 h-2.5 text-gray-300 fill-gray-300" />
-                  <span className="text-[10px] text-gray-500 ml-0.5">(4.0)</span>
+                  <span className="text-[10px] text-gray-500 ml-0.5">(5.0)</span>
                 </div>
               </div>
               
@@ -163,7 +214,14 @@ export default function HomeScreen() {
                     {(book.price * 1.5).toFixed(2)}$
                   </span>
                 </div>
-                <button className="bg-[#006A4E] text-white text-xs font-medium px-3 py-1.5 rounded-lg hover:bg-[#005C44] transition-colors">
+                <button 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    addToCart({ ...book, originalPrice: book.price * 1.5 });
+                    navigate('/cart');
+                  }}
+                  className="bg-[#006A4E] text-white text-xs font-medium px-3 py-1.5 rounded-lg hover:bg-[#005C44] transition-colors"
+                >
                   Add to cart
                 </button>
               </div>
@@ -175,7 +233,10 @@ export default function HomeScreen() {
       {/* News & Promotions */}
       <div className="mb-8">
         <h3 className="font-bold text-gray-900 mb-4">News & Promotions</h3>
-        <div className="w-full h-32 bg-[#E8F5F0] rounded-2xl overflow-hidden relative flex items-center justify-center">
+        <div 
+          onClick={() => navigate('/search')}
+          className="w-full h-32 bg-[#E8F5F0] rounded-2xl overflow-hidden relative flex items-center justify-center cursor-pointer hover:shadow-md transition-shadow"
+        >
           {/* Placeholder for banner image */}
           <div className="absolute inset-0 bg-gradient-to-r from-[#88D4B9]/30 to-transparent"></div>
           <div className="z-10 text-center p-4">
@@ -193,13 +254,15 @@ export default function HomeScreen() {
       </div>
 
       {/* Floating Chat Button */}
-      <button 
-        onClick={() => navigate('/chat')}
-        className="fixed bottom-24 right-4 w-14 h-14 bg-[#006A4E] rounded-full shadow-lg flex items-center justify-center text-white hover:bg-[#005C44] transition-colors z-30"
-      >
-        <MessageCircle className="w-6 h-6" />
-        <span className="absolute top-3 right-3 w-3 h-3 bg-red-500 rounded-full border-2 border-[#006A4E]"></span>
-      </button>
+      <div className="fixed bottom-28 left-0 right-0 max-w-md mx-auto pointer-events-none z-30">
+        <button 
+          onClick={() => navigate('/gemini')}
+          className="absolute right-4 w-14 h-14 bg-[#006A4E] rounded-full shadow-lg flex items-center justify-center text-white hover:bg-[#005C44] transition-colors pointer-events-auto"
+        >
+          <MessageCircle className="w-6 h-6" />
+          <span className="absolute top-3 right-3 w-3 h-3 bg-red-500 rounded-full border-2 border-[#006A4E]"></span>
+        </button>
+      </div>
     </div>
   );
 }

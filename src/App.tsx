@@ -1,10 +1,11 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { CartProvider } from './context/CartContext';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import Layout from './components/Layout';
 import { motion } from 'framer-motion';
-import { Rabbit, BookOpen } from 'lucide-react';
+import BooxieLogo from './components/BooxieLogo';
 
 import WelcomeScreen from './screens/WelcomeScreen';
 import LoginScreen from './screens/LoginScreen';
@@ -19,7 +20,22 @@ import RewardsScreen from './screens/RewardsScreen';
 import GeminiChatScreen from './screens/GeminiChatScreen';
 import CommunityHubScreen from './screens/CommunityHubScreen';
 import CartScreen from './screens/CartScreen';
+import CheckoutScreen from './screens/CheckoutScreen';
+import OrderSuccessScreen from './screens/OrderSuccessScreen';
+import OrderConfirmationScreen from './screens/OrderConfirmationScreen';
 import ProfileScreen from './screens/ProfileScreen';
+import BookDetailsSellScreen from './screens/BookDetailsSellScreen';
+import ScanEditScreen from './screens/ScanEditScreen';
+import PlaceholderScreen from './screens/PlaceholderScreen';
+
+// Admin Screens
+import AdminLayout from './screens/admin/AdminLayout';
+import AdminDashboardScreen from './screens/admin/AdminDashboardScreen';
+import AdminUsersScreen from './screens/admin/AdminUsersScreen';
+import AdminListingsScreen from './screens/admin/AdminListingsScreen';
+import AdminTransactionsScreen from './screens/admin/AdminTransactionsScreen';
+import AdminModerationScreen from './screens/admin/AdminModerationScreen';
+import AdminReportsScreen from './screens/admin/AdminReportsScreen';
 
 function LoadingScreen() {
   return (
@@ -30,18 +46,8 @@ function LoadingScreen() {
         transition={{ duration: 0.5, ease: "easeOut" }}
         className="flex flex-col items-center"
       >
-        <div className="relative w-48 h-48 mb-6 flex items-center justify-center">
-          {/* Background circle */}
-          <div className="absolute inset-0 bg-[#88D4B9] rounded-full opacity-80"></div>
-          
-          {/* Mascot placeholder (using icons to approximate the rabbit with books) */}
-          <div className="relative z-10 flex flex-col items-center">
-            <Rabbit className="w-24 h-24 text-white drop-shadow-md" strokeWidth={1.5} />
-            <div className="flex -mt-4 gap-1">
-              <BookOpen className="w-8 h-8 text-blue-600 fill-blue-500 drop-shadow-sm" />
-              <BookOpen className="w-8 h-8 text-blue-700 fill-blue-600 drop-shadow-sm" />
-            </div>
-          </div>
+        <div className="mb-6 flex items-center justify-center">
+          <BooxieLogo className="w-40 h-40 drop-shadow-sm" />
         </div>
         
         <motion.h1 
@@ -75,9 +81,10 @@ export default function App() {
   return (
     <ErrorBoundary>
       <AuthProvider>
-        <BrowserRouter>
-          <Routes>
-            <Route path="/welcome" element={<WelcomeScreen />} />
+        <CartProvider>
+          <BrowserRouter>
+            <Routes>
+              <Route path="/welcome" element={<WelcomeScreen />} />
             <Route path="/login" element={<LoginScreen />} />
             <Route path="/signup" element={<SignupScreen />} />
             
@@ -85,6 +92,8 @@ export default function App() {
               <Route index element={<HomeScreen />} />
               <Route path="search" element={<SearchScreen />} />
               <Route path="sell" element={<SellScreen />} />
+              <Route path="sell/edit" element={<ScanEditScreen />} />
+              <Route path="sell/details" element={<BookDetailsSellScreen />} />
               <Route path="book/:id" element={<BookDetailScreen />} />
               <Route path="chat" element={<ChatListScreen />} />
               <Route path="chat/:id" element={<ChatScreen />} />
@@ -92,10 +101,36 @@ export default function App() {
               <Route path="gemini" element={<GeminiChatScreen />} />
               <Route path="community" element={<CommunityHubScreen />} />
               <Route path="cart" element={<CartScreen />} />
+              <Route path="checkout" element={<CheckoutScreen />} />
+              <Route path="order-confirmation" element={<OrderConfirmationScreen />} />
+              <Route path="order-success" element={<OrderSuccessScreen />} />
               <Route path="profile" element={<ProfileScreen />} />
+              
+              {/* Placeholder Routes for missing links */}
+              <Route path="settings" element={<PlaceholderScreen title="Settings" />} />
+              <Route path="edit-profile" element={<PlaceholderScreen title="Edit Profile" />} />
+              <Route path="membership" element={<PlaceholderScreen title="Membership" />} />
+              <Route path="orders" element={<PlaceholderScreen title="My Orders" />} />
+              <Route path="donations" element={<PlaceholderScreen title="Donations" />} />
+              <Route path="favorites" element={<PlaceholderScreen title="Favorites" />} />
+              <Route path="order/:id" element={<PlaceholderScreen title="Order Details" />} />
+              <Route path="leaderboard" element={<PlaceholderScreen title="Leaderboard" />} />
+              <Route path="earn-points" element={<PlaceholderScreen title="Earn Points" />} />
+            </Route>
+
+            {/* Admin Routes */}
+            <Route path="/admin" element={<ProtectedRoute><AdminLayout /></ProtectedRoute>}>
+              <Route index element={<AdminDashboardScreen />} />
+              <Route path="users" element={<AdminUsersScreen />} />
+              <Route path="listings" element={<AdminListingsScreen />} />
+              <Route path="transactions" element={<AdminTransactionsScreen />} />
+              <Route path="moderation" element={<AdminModerationScreen />} />
+              <Route path="reports" element={<AdminReportsScreen />} />
+              <Route path="settings" element={<div className="p-6"><h1 className="text-2xl font-bold">Settings</h1><p className="text-gray-500 mt-2">Admin settings coming soon.</p></div>} />
             </Route>
           </Routes>
-        </BrowserRouter>
+          </BrowserRouter>
+        </CartProvider>
       </AuthProvider>
     </ErrorBoundary>
   );

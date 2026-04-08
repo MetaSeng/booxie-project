@@ -1,7 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Rabbit, BookOpen } from 'lucide-react';
 import { motion } from 'framer-motion';
+import BooxieLogo from '../components/BooxieLogo';
 
 export default function WelcomeScreen() {
   const navigate = useNavigate();
@@ -14,18 +14,8 @@ export default function WelcomeScreen() {
         transition={{ duration: 0.5, ease: "easeOut" }}
         className="flex flex-col items-center mb-12"
       >
-        <div className="relative w-48 h-48 mb-6 flex items-center justify-center">
-          {/* Background circle */}
-          <div className="absolute inset-0 bg-[#88D4B9] rounded-full opacity-80"></div>
-          
-          {/* Mascot placeholder (using icons to approximate the rabbit with books) */}
-          <div className="relative z-10 flex flex-col items-center">
-            <Rabbit className="w-24 h-24 text-white drop-shadow-md" strokeWidth={1.5} />
-            <div className="flex -mt-4 gap-1">
-              <BookOpen className="w-8 h-8 text-blue-600 fill-blue-500 drop-shadow-sm" />
-              <BookOpen className="w-8 h-8 text-blue-700 fill-blue-600 drop-shadow-sm" />
-            </div>
-          </div>
+        <div className="mb-6 flex items-center justify-center">
+          <BooxieLogo className="w-40 h-40 drop-shadow-sm" />
         </div>
         
         <motion.h1 

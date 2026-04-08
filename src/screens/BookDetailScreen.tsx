@@ -1,17 +1,19 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { doc, getDoc, collection, addDoc, serverTimestamp, query, where, getDocs } from 'firebase/firestore';
-import { db, auth, handleFirestoreError, OperationType } from '../firebase';
+import { db, handleFirestoreError, OperationType } from '../firebase';
 import { useAuth } from '../context/AuthContext';
-import { ArrowLeft, BookOpen, MessageCircle, User, Heart, ShoppingCart } from 'lucide-react';
+import { useCart } from '../context/CartContext';
+import { ArrowLeft, MessageCircle, Star, CheckCircle2, Package } from 'lucide-react';
+import BooxieLogo from '../components/BooxieLogo';
 
 export default function BookDetailScreen() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { addToCart } = useCart();
   const [book, setBook] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [isSaved, setIsSaved] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -37,7 +39,6 @@ export default function BookDetailScreen() {
     if (!user || !book) return;
 
     try {
-      // Check if conversation already exists
       const q = query(
         collection(db, 'conversations'),
         where('participants', 'array-contains', user.uid)
@@ -55,7 +56,6 @@ export default function BookDetailScreen() {
       if (existingConvId) {
         navigate(`/chat/${existingConvId}`);
       } else {
-        // Create new conversation
         const convRef = await addDoc(collection(db, 'conversations'), {
           participants: [user.uid, book.sellerId],
           bookId: book.id,
@@ -71,8 +71,10 @@ export default function BookDetailScreen() {
   };
 
   const handleAddToCart = () => {
-    // In a real app, this would add to a cart context or database
-    navigate('/cart');
+    if (book) {
+      addToCart({ ...book, originalPrice: book.originalPrice || book.price * 1.5 });
+      navigate('/cart');
+    }
   };
 
   if (loading) {
@@ -84,95 +86,153 @@ export default function BookDetailScreen() {
   }
 
   return (
-    <div className="bg-booxie-bg min-h-full pb-24 font-sans">
-      <div className="relative aspect-square bg-gray-100">
+    <div className="bg-[#F8FCF9] min-h-screen pb-24 font-sans flex flex-col">
+      {/* Header */}
+      <div className="sticky top-0 z-20 flex justify-between items-center px-4 py-3 bg-[#F8FCF9]">
         <button 
-          onClick={() => navigate(-1)}
-          className="absolute top-4 left-4 w-10 h-10 bg-white/80 backdrop-blur-md rounded-full flex items-center justify-center shadow-sm z-10"
+          onClick={() => navigate('/')}
+          className="relative z-50 p-2 -ml-2 rounded-full hover:bg-gray-100"
         >
-          <ArrowLeft className="w-5 h-5 text-gray-900" />
+          <ArrowLeft className="w-6 h-6 text-gray-900" />
         </button>
-        
-        <button 
-          onClick={() => setIsSaved(!isSaved)}
-          className="absolute top-4 right-4 w-10 h-10 bg-white/80 backdrop-blur-md rounded-full flex items-center justify-center shadow-sm z-10"
-        >
-          <Heart className={`w-5 h-5 ${isSaved ? 'fill-red-500 text-red-500' : 'text-gray-900'}`} />
-        </button>
-        
-        {book.imageUrl ? (
-          <img src={book.imageUrl} alt={book.title} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center">
-            <BookOpen className="w-24 h-24 text-gray-300" />
-          </div>
-        )}
-        
-        {book.type === 'donation' && (
-          <div className="absolute bottom-6 left-4 bg-booxie-green text-white font-bold px-4 py-1.5 rounded-full shadow-lg">
-            FREE DONATION
-          </div>
-        )}
+        <h1 className="text-xl font-bold text-gray-900 truncate max-w-[200px]">{book.title}</h1>
+        <div className="w-10 h-10 rounded-full overflow-hidden flex items-center justify-center bg-[#E8F5F0]">
+          <BooxieLogo className="w-8 h-8" />
+        </div>
       </div>
 
-      <div className="p-6 -mt-6 bg-white rounded-t-3xl relative z-10 shadow-[0_-8px_10px_-5px_rgba(0,0,0,0.05)]">
-        <div className="flex justify-between items-start mb-2">
-          <h1 className="text-2xl font-bold text-gray-900 leading-tight">{book.title}</h1>
-          <span className="text-2xl font-black text-booxie-green ml-4">
-            {book.type === 'donation' ? '0' : `$${book.price.toFixed(2)}`}
-          </span>
-        </div>
-        
-        <p className="text-gray-500 font-medium mb-6">{book.author}</p>
-
-        <div className="flex gap-4 mb-8">
-          <div className="flex-1 bg-gray-50 p-3 rounded-2xl text-center border border-gray-100">
-            <span className="block text-xs text-gray-400 uppercase font-bold mb-1">Condition</span>
-            <span className="font-medium text-gray-900 capitalize">{book.condition}</span>
+      <div className="px-4 pb-6">
+        <div className="bg-white rounded-3xl shadow-sm overflow-hidden pb-6">
+          {/* Image Section */}
+          <div className="w-full aspect-[4/3] bg-[#006A4E] relative flex items-center justify-center p-4">
+            {/* Decorative background shapes */}
+            <div className="absolute bottom-0 left-0 w-32 h-32 bg-[#80B5A6] rounded-tr-full opacity-50"></div>
+            <div className="absolute bottom-0 right-0 w-24 h-24 bg-[#80B5A6] rounded-tl-full opacity-50"></div>
+            
+            {book.imageUrl ? (
+              <img src={book.imageUrl} alt={book.title} className="w-full h-full object-contain relative z-10 rounded-lg shadow-lg" referrerPolicy="no-referrer" />
+            ) : (
+              <div className="w-full h-full bg-white/20 rounded-lg relative z-10 flex items-center justify-center">
+                <span className="text-white font-medium">No Image</span>
+              </div>
+            )}
           </div>
-          <div className="flex-1 bg-gray-50 p-3 rounded-2xl text-center border border-gray-100">
-            <span className="block text-xs text-gray-400 uppercase font-bold mb-1">Type</span>
-            <span className="font-medium text-gray-900 capitalize">{book.type}</span>
-          </div>
-        </div>
 
-        <div className="mb-8">
-          <h3 className="font-bold text-gray-900 mb-2">Description</h3>
-          <p className="text-gray-600 leading-relaxed text-sm">
-            {book.description || 'No description provided.'}
-          </p>
-        </div>
+          {/* Book Info */}
+          <div className="p-5">
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">{book.title}</h2>
+            
+            <div className="flex items-center gap-3 mb-3">
+              <span className="text-xs font-medium text-gray-700 border border-gray-300 px-2 py-0.5 rounded">
+                {book.condition || 'Good'}
+              </span>
+              <div className="flex items-center gap-1">
+                <div className="flex">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <Star key={star} className="w-3.5 h-3.5 fill-yellow-400 text-yellow-400" />
+                  ))}
+                </div>
+                <span className="text-xs text-gray-500">(4.5)</span>
+              </div>
+            </div>
 
-        <div className="flex items-center gap-4 p-4 bg-booxie-green-light rounded-2xl mb-8">
-          <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-sm">
-            <User className="w-6 h-6 text-booxie-green" />
-          </div>
-          <div>
-            <p className="text-xs text-booxie-green font-bold uppercase">Seller</p>
-            <p className="font-medium text-gray-900">{book.sellerName}</p>
-          </div>
-        </div>
+            <div className="flex items-end gap-2 mb-4">
+              <span className="text-xl font-bold text-red-500">
+                {book.type === 'donation' ? 'Free' : `${book.price}$`}
+              </span>
+              {book.originalPrice && (
+                <span className="text-sm text-gray-400 line-through mb-0.5">{book.originalPrice}$</span>
+              )}
+            </div>
+            
+            <div className="w-full h-px bg-gray-200 mb-4"></div>
 
-        {user?.uid !== book.sellerId && (
-          <div className="flex gap-3">
-            {book.type !== 'donation' && (
+            {/* Reward Section */}
+            <div className="border border-[#006A4E] rounded-xl p-4 flex justify-between items-center mb-6">
+              <div>
+                <p className="text-sm font-medium text-gray-900 mb-1">Earn points from this purchase</p>
+                <p className="text-sm text-blue-500">100 reward points</p>
+              </div>
+              <div className="w-10 h-10">
+                <img src="https://cdn-icons-png.flaticon.com/512/4213/4213625.png" alt="Gift" className="w-full h-full object-contain" />
+              </div>
+            </div>
+
+            <div className="w-full h-px bg-gray-200 mb-6"></div>
+
+            {/* Description */}
+            <div className="mb-6">
+              <h3 className="font-medium text-gray-900 mb-2">Description</h3>
+              <p className="text-sm text-gray-500 leading-relaxed">
+                {book.description || 'Covers advanced topics such as limits, sequences, integrals, probability, vectors in space, and differential equations.'}
+              </p>
+            </div>
+
+            <div className="w-full h-px bg-gray-200 mb-6"></div>
+
+            {/* Seller Info */}
+            <div className="mb-6">
+              <h3 className="font-medium text-gray-900 mb-3">Seller information</h3>
+              <div 
+                onClick={() => navigate('/profile')}
+                className="bg-[#E3F2FD] rounded-xl p-4 relative cursor-pointer hover:bg-[#D0E8FC] transition-colors"
+              >
+                <div className="flex items-center gap-1 mb-1">
+                  <p className="text-sm font-medium text-gray-700">{book.sellerName || 'Sara Chen'}</p>
+                  <CheckCircle2 className="w-4 h-4 text-green-500" />
+                </div>
+                <div className="flex items-center gap-1 mb-3">
+                  <div className="flex">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <Star key={star} className="w-3 h-3 fill-yellow-400 text-yellow-400" />
+                    ))}
+                  </div>
+                  <span className="text-[10px] text-gray-500">(4.5)</span>
+                </div>
+                <div className="flex items-center gap-2 text-xs text-gray-700">
+                  <Package className="w-4 h-4 text-[#8D6E63]" />
+                  <span>Delivery with J&T Express (discounted rate)</span>
+                </div>
+                
+                <button 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleContactSeller();
+                  }}
+                  className="absolute top-4 right-4 bg-[#006A4E] text-white text-xs font-medium px-3 py-1.5 rounded-md flex items-center gap-1 hover:bg-[#005A42] transition-colors"
+                >
+                  <MessageCircle className="w-3.5 h-3.5" />
+                  Chat
+                </button>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex gap-2 mt-8">
               <button 
                 onClick={handleAddToCart}
-                className="flex-1 bg-booxie-green text-white py-4 rounded-xl font-bold shadow-lg shadow-booxie-green/30 hover:bg-booxie-green-dark transition-colors flex items-center justify-center gap-2"
+                className="flex-1 bg-gray-100 text-gray-900 rounded-full font-bold text-sm py-3.5 flex items-center justify-center hover:bg-gray-200 transition-colors"
               >
-                <ShoppingCart className="w-5 h-5" />
-                Add to Cart
+                Add to cart
               </button>
-            )}
-            <button 
-              onClick={handleContactSeller}
-              className={`${book.type === 'donation' ? 'flex-1 bg-booxie-green text-white shadow-lg shadow-booxie-green/30' : 'flex-1 bg-white text-booxie-green border-2 border-booxie-green'} py-4 rounded-xl font-bold hover:bg-booxie-green-light transition-colors flex items-center justify-center gap-2`}
-            >
-              <MessageCircle className="w-5 h-5" />
-              Chat
-            </button>
+
+              <button 
+                onClick={handleContactSeller}
+                className="flex-1 bg-blue-50 text-blue-600 border border-blue-200 rounded-full font-bold text-sm py-3.5 flex items-center justify-center gap-1.5 hover:bg-blue-100 transition-colors"
+              >
+                <MessageCircle className="w-4 h-4" />
+                Chat
+              </button>
+
+              <button 
+                onClick={() => navigate('/checkout', { state: { book } })}
+                className="flex-1 bg-[#006A4E] text-white rounded-full font-bold text-sm py-3.5 shadow-lg shadow-[#006A4E]/20 hover:bg-[#005A42] transition-colors"
+              >
+                {book.type === 'donation' ? 'Request' : 'Buy now'}
+              </button>
+            </div>
           </div>
-        )}
+        </div>
       </div>
     </div>
   );
