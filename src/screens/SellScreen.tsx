@@ -55,6 +55,19 @@ export default function SellScreen() {
     try {
       if (activeTab === 'Front Cover') {
         const ai = getGeminiAI();
+        if (!ai) {
+          setFrontCoverData({
+            detected: true,
+            title: 'Sample Book Title',
+            author: 'Sample Author',
+            description: 'AI assistant not configured. Using sample data.',
+            price: 5.00
+          });
+          setFrontCoverImage(imageSrc);
+          setActiveTab('Back Cover');
+          setError('AI assistant not configured. Using sample data.');
+          return;
+        }
         const response = await ai.models.generateContent({
           model: 'gemini-3-flash-preview',
           contents: {
@@ -78,6 +91,17 @@ export default function SellScreen() {
         }
       } else if (activeTab === 'Back Cover') {
         const ai = getGeminiAI();
+        if (!ai) {
+          setBackCoverImage(imageSrc);
+          setAutoScanEnabled(false);
+          navigate('/sell/edit', { 
+            state: { 
+              images: [frontCoverImage, imageSrc].filter(Boolean),
+              frontCoverData 
+            } 
+          });
+          return;
+        }
         const response = await ai.models.generateContent({
           model: 'gemini-3-flash-preview',
           contents: {

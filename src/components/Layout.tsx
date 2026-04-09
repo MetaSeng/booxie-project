@@ -21,6 +21,8 @@ export default function Layout() {
     setLanguage(prev => prev === 'EN' ? 'KH' : 'EN');
   };
 
+  const isGeminiChat = location.pathname === '/gemini';
+
   return (
     <div className="min-h-screen bg-[#F8FCF9] flex flex-col max-w-md mx-auto shadow-2xl relative overflow-hidden font-sans">
       {/* Header */}
@@ -116,7 +118,7 @@ export default function Layout() {
       )}
 
       {/* Main Content Area */}
-      <main className={`flex-1 overflow-y-auto relative ${shouldShowBottomNav ? 'pb-20' : ''}`}>
+      <main className={`flex-1 relative ${isGeminiChat ? 'overflow-hidden flex flex-col' : 'overflow-y-auto'} ${shouldShowBottomNav ? 'pb-20' : ''}`}>
         <Outlet />
       </main>
 

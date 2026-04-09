@@ -20,11 +20,11 @@ interface BookListing {
 }
 
 const CATEGORIES = [
-  { id: 'printed', label: 'Printed books', icon: '/cat-printed.png' },
-  { id: 'english', label: 'English books', icon: '/cat-english.png' },
-  { id: 'diploma', label: 'Diploma 9', icon: '/cat-diploma.png' },
-  { id: 'exam', label: 'Exam subjects', icon: '/cat-exam.png' },
-  { id: 'fiction', label: 'Fiction Book', icon: '/cat-fiction.png' },
+  { id: 'printed', label: 'Printed books', icon: 'https://lh3.googleusercontent.com/d/1gBac4HB_fvzjXfK9d7hW0baFjuqbSz9u' },
+  { id: 'english', label: 'English books', icon: 'https://lh3.googleusercontent.com/d/1AmUQyGxG0RePF4kwfeqvPJOt2EOeFi5S' },
+  { id: 'diploma', label: 'Diploma 9', icon: 'https://lh3.googleusercontent.com/d/18Aj2zUXaHnZeWcZomnLlWqSo_wq3GslT' },
+  { id: 'exam', label: 'Exam subjects', icon: 'https://lh3.googleusercontent.com/d/1J4KjM6YwRr0RDuazZ6Qyirp37ZQ9hVIl' },
+  { id: 'fiction', label: 'Fiction Book', icon: 'https://lh3.googleusercontent.com/d/1bPAh10cr4W4jNkilGR_yKNCnFuifT_4B' },
 ];
 
 export default function HomeScreen() {
@@ -232,9 +232,9 @@ export default function HomeScreen() {
         <h3 className="font-bold text-gray-900 mb-4">News & Promotions</h3>
         <div 
           onClick={() => navigate('/search')}
-          className="w-full h-40 bg-[#E8F5F0] rounded-2xl overflow-hidden relative flex items-center justify-center cursor-pointer hover:shadow-md transition-shadow"
+          className="w-full bg-[#E8F5F0] rounded-2xl overflow-hidden relative flex items-center justify-center cursor-pointer hover:shadow-md transition-shadow"
         >
-          <img src="/news-awards.png" alt="High School Awards 2026" className="w-full h-full object-cover" />
+          <img src="https://lh3.googleusercontent.com/d/1z5VOQKth40YJQBb_GYVceG3mIt034e31" alt="High School Awards 2026" className="w-full h-auto object-contain" referrerPolicy="no-referrer" />
           {/* Pagination dots */}
           <div className="absolute bottom-2 left-0 right-0 flex justify-center gap-1">
             <div className="w-4 h-1.5 bg-white rounded-full"></div>

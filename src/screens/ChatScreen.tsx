@@ -133,6 +133,17 @@ export default function ChatScreen() {
 
       try {
         const ai = getGeminiAI();
+        if (!ai) {
+          const errorMsg = {
+            id: (Date.now() + 1).toString(),
+            senderId: 'ai',
+            text: "I'm sorry, but the AI assistant is not configured yet. Please make sure the Gemini API key is set in the environment variables.",
+            createdAt: { toDate: () => new Date() }
+          };
+          setMessages(prev => [...prev, errorMsg]);
+          setIsAiTyping(false);
+          return;
+        }
         let aiContents: any = type === 'text' ? content : "User sent a media file.";
         
         if (type === 'image') {
@@ -374,9 +385,9 @@ export default function ChatScreen() {
           </div>
         )}
 
-        <div className="p-3 flex items-center gap-2 relative">
+        <div className="p-3 flex items-center gap-2 relative w-full">
           {showEmojiPicker && (
-            <div className="absolute bottom-full left-12 mb-2 bg-white border border-gray-200 rounded-xl shadow-lg p-2 flex flex-wrap gap-2 w-64 z-10">
+            <div className="absolute bottom-full left-12 mb-2 bg-white border border-gray-200 rounded-xl shadow-lg p-2 flex flex-wrap gap-2 w-64 max-w-[calc(100%-4rem)] z-10">
               {emojis.map(emoji => (
                 <button
                   key={emoji}
@@ -410,24 +421,24 @@ export default function ChatScreen() {
 
           <button 
             onClick={() => cameraInputRef.current?.click()}
-            className="relative z-50 p-2 -ml-2 text-gray-400 hover:text-[#006A4E] transition-colors"
+            className="relative z-50 p-2 -ml-2 text-gray-400 hover:text-[#006A4E] transition-colors flex-shrink-0"
           >
             <Camera className="w-5 h-5" />
           </button>
           
-          <form onSubmit={handleSend} className="flex-1 flex items-center bg-gray-50 border border-gray-200 rounded-full px-2 py-1">
+          <form onSubmit={handleSend} className="flex-1 flex items-center bg-gray-50 border border-gray-200 rounded-full px-2 py-1 min-w-0 overflow-hidden">
             <button 
               type="button" 
               onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-              className="p-1.5 text-gray-400 hover:text-gray-600"
+              className="p-1.5 text-gray-400 hover:text-gray-600 flex-shrink-0"
             >
               <Smile className="w-5 h-5" />
             </button>
             
             {isRecording ? (
-              <div className="flex-1 flex items-center px-2">
-                <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse mr-2"></div>
-                <span className="text-sm text-red-500 font-medium">{formatTime(recordingTime)}</span>
+              <div className="flex-1 flex items-center px-2 min-w-0">
+                <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse mr-2 flex-shrink-0"></div>
+                <span className="text-sm text-red-500 font-medium truncate">{formatTime(recordingTime)}</span>
               </div>
             ) : (
               <input
@@ -435,7 +446,7 @@ export default function ChatScreen() {
                 value={text}
                 onChange={e => setText(e.target.value)}
                 placeholder="Type message..."
-                className="flex-1 bg-transparent border-none focus:outline-none px-2 text-sm"
+                className="flex-1 bg-transparent border-none focus:outline-none px-2 text-sm min-w-0"
               />
             )}
 
@@ -443,7 +454,7 @@ export default function ChatScreen() {
               <button 
                 type="button" 
                 onClick={() => fileInputRef.current?.click()}
-                className="p-1.5 text-gray-400 hover:text-gray-600 mr-1"
+                className="p-1.5 text-gray-400 hover:text-gray-600 mr-1 flex-shrink-0"
               >
                 <ImageIcon className="w-5 h-5" />
               </button>
@@ -452,7 +463,7 @@ export default function ChatScreen() {
             {text.trim() && !isRecording ? (
               <button 
                 type="submit"
-                className="w-8 h-8 rounded-full flex items-center justify-center transition-colors bg-[#006A4E] text-white"
+                className="w-8 h-8 rounded-full flex items-center justify-center transition-colors bg-[#006A4E] text-white flex-shrink-0"
               >
                 <Send className="w-4 h-4 ml-0.5" />
               </button>
@@ -460,7 +471,7 @@ export default function ChatScreen() {
               <button 
                 type="button" 
                 onClick={handleMicClick}
-                className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${isRecording ? 'bg-red-500 text-white' : 'text-gray-400 hover:text-gray-600'}`}
+                className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors flex-shrink-0 ${isRecording ? 'bg-red-500 text-white' : 'text-gray-400 hover:text-gray-600'}`}
               >
                 <Mic className="w-5 h-5" />
               </button>

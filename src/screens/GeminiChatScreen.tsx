@@ -48,9 +48,13 @@ export default function GeminiChatScreen() {
 
       try {
         const ai = getGeminiAI();
+        if (!ai) {
+          setMessages(prev => [...prev, { role: 'model', text: "AI assistant is not configured. Please set the Gemini API key." }]);
+          return;
+        }
         const base64Data = base64.split(',')[1];
         const response = await ai.models.generateContent({
-          model: 'gemini-3-flash-preview',
+          model: 'gemini-3.1-flash-preview',
           contents: [
             {
               role: 'user',
@@ -95,6 +99,9 @@ export default function GeminiChatScreen() {
   };
 
   useEffect(() => {
+    const ai = getGeminiAI();
+    if (!ai) return;
+
     const config: any = {
       systemInstruction: "You are the Booxie AI Assistant. Booxie is a marketplace for students to buy, sell, and donate second-hand books. Be helpful, concise, and friendly. You can help with study tips, book recommendations, and app usage."
     };
@@ -103,7 +110,6 @@ export default function GeminiChatScreen() {
       config.thinkingConfig = { thinkingLevel: ThinkingLevel.HIGH };
     }
 
-    const ai = getGeminiAI();
     chatRef.current = ai.chats.create({
       model: 'gemini-3-flash-preview',
       config
@@ -124,8 +130,12 @@ export default function GeminiChatScreen() {
 
     try {
       const ai = getGeminiAI();
+      if (!ai) {
+        setMessages(prev => [...prev, { role: 'model', text: "AI assistant is not configured. Please set the Gemini API key." }]);
+        return;
+      }
       const response = await ai.models.generateContent({
-        model: 'gemini-3-pro-image-preview',
+        model: 'gemini-3.1-flash-image-preview',
         contents: {
           parts: [{ text: prompt }]
         },
@@ -164,13 +174,37 @@ export default function GeminiChatScreen() {
     
     if (!textToSend || isLoading) return;
 
+    if (!chatRef.current) {
+      setMessages(prev => [...prev, { role: 'user', text: textToSend }]);
+      setMessages(prev => [...prev, { 
+        role: 'model', 
+        text: "### ⚠️ AI Assistant Not Configured\n\nTo enable the AI chatbot, you need to provide a **Gemini API Key**.\n\n1. Go to [aistudio.google.com](https://aistudio.google.com/app/apikey) to get a free key.\n2. In this editor, click the **Settings** (gear icon) -> **Environment Variables**.\n3. Add a variable named `GEMINI_API_KEY` and paste your key.\n4. Refresh the page to start chatting!" 
+      }]);
+      return;
+    }
+
     setInput('');
     setMessages(prev => [...prev, { role: 'user', text: textToSend }]);
     setIsLoading(true);
 
     try {
-      const response = await chatRef.current.sendMessage({ message: textToSend });
-      setMessages(prev => [...prev, { role: 'model', text: response.text || 'Sorry, I could not process that.' }]);
+      // Add an empty model message that we will stream into
+      setMessages(prev => [...prev, { role: 'model', text: '' }]);
+      
+      const stream = await chatRef.current.sendMessageStream({ message: textToSend });
+      
+      let fullText = '';
+      for await (const chunk of stream) {
+        const chunkText = chunk.text || '';
+        fullText += chunkText;
+        
+        // Update the last message with the accumulated text
+        setMessages(prev => {
+          const newMessages = [...prev];
+          newMessages[newMessages.length - 1] = { role: 'model', text: fullText };
+          return newMessages;
+        });
+      }
     } catch (error: any) {
       console.error(error);
       let errorText = 'An error occurred. Please try again.';
@@ -189,7 +223,12 @@ export default function GeminiChatScreen() {
       if (isQuotaError) {
         errorText = "I'm currently experiencing high traffic and my quota is exceeded. Please try again later.";
       }
-      setMessages(prev => [...prev, { role: 'model', text: errorText }]);
+      
+      setMessages(prev => {
+        const newMessages = [...prev];
+        newMessages[newMessages.length - 1] = { role: 'model', text: errorText };
+        return newMessages;
+      });
     } finally {
       setIsLoading(false);
     }
@@ -284,9 +323,9 @@ export default function GeminiChatScreen() {
       </div>
 
       {/* Input Area */}
-      <div className="bg-white px-4 py-3 pb-safe border-t border-gray-100 relative">
+      <div className="bg-white px-3 py-3 pb-safe border-t border-gray-100 relative w-full">
         {showEmojiPicker && (
-          <div className="absolute bottom-full left-4 mb-2 bg-white border border-gray-200 rounded-2xl shadow-lg p-2 flex gap-2">
+          <div className="absolute bottom-full left-4 mb-2 bg-white border border-gray-200 rounded-2xl shadow-lg p-2 flex flex-wrap gap-2 max-w-[calc(100%-2rem)] z-50">
             {emojis.map(emoji => (
               <button
                 key={emoji}
@@ -304,7 +343,7 @@ export default function GeminiChatScreen() {
         )}
 
         {showImageOptions && (
-          <div className="absolute bottom-full right-4 mb-2 bg-white border border-gray-200 rounded-2xl shadow-lg p-3 flex flex-col gap-2 w-64 z-50">
+          <div className="absolute bottom-full right-4 mb-2 bg-white border border-gray-200 rounded-2xl shadow-lg p-3 flex flex-col gap-2 w-64 max-w-[calc(100%-2rem)] z-50">
             <h3 className="text-xs font-bold text-gray-700 mb-1">Generate Image</h3>
             <div className="flex gap-2 mb-2">
               {(['1K', '2K', '4K'] as const).map(size => (
@@ -345,20 +384,20 @@ export default function GeminiChatScreen() {
           onChange={handleImageUpload} 
         />
 
-        <form onSubmit={handleSend} className="flex items-center gap-3">
+        <form onSubmit={handleSend} className="flex items-center gap-2 w-full">
           <button 
             type="button" 
             onClick={() => cameraInputRef.current?.click()}
-            className="w-10 h-10 bg-[#006A4E] rounded-full flex items-center justify-center text-white flex-shrink-0 shadow-sm"
+            className="w-9 h-9 bg-[#006A4E] rounded-full flex items-center justify-center text-white flex-shrink-0 shadow-sm"
           >
-            <Camera className="w-5 h-5" />
+            <Camera className="w-4.5 h-4.5" />
           </button>
           
-          <div className="flex-1 flex items-center bg-gray-50 rounded-full px-4 py-2.5">
+          <div className="flex-1 flex items-center bg-gray-50 rounded-full px-3 py-2 min-w-0 overflow-hidden">
             {isRecording ? (
-              <div className="flex-1 flex items-center">
-                <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse mr-2"></div>
-                <span className="text-sm text-red-500 font-medium">{formatTime(recordingTime)}</span>
+              <div className="flex-1 flex items-center min-w-0">
+                <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse mr-2 flex-shrink-0"></div>
+                <span className="text-sm text-red-500 font-medium truncate">{formatTime(recordingTime)}</span>
               </div>
             ) : (
               <input
@@ -366,38 +405,38 @@ export default function GeminiChatScreen() {
                 value={input}
                 onChange={e => setInput(e.target.value)}
                 placeholder="Type message ..."
-                className="flex-1 bg-transparent focus:outline-none text-sm text-gray-700 placeholder:text-gray-500"
+                className="flex-1 bg-transparent focus:outline-none text-sm text-gray-700 placeholder:text-gray-500 min-w-0"
               />
             )}
             
-            <div className="flex items-center gap-3 text-gray-900 ml-2">
+            <div className="flex items-center gap-2 text-gray-900 ml-1 flex-shrink-0">
               <button 
                 type="button" 
                 onClick={() => setShowImageOptions(!showImageOptions)}
-                className="hover:text-[#006A4E] transition-colors relative"
+                className="hover:text-[#006A4E] transition-colors relative p-1"
               >
-                <ImagePlus className="w-5 h-5" />
+                <ImagePlus className="w-4.5 h-4.5" />
               </button>
               <button 
                 type="button" 
                 onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                className="hover:text-[#006A4E] transition-colors"
+                className="hover:text-[#006A4E] transition-colors p-1"
               >
-                <Smile className="w-5 h-5" />
+                <Smile className="w-4.5 h-4.5" />
               </button>
               <button 
                 type="button" 
                 onClick={() => fileInputRef.current?.click()}
-                className="hover:text-[#006A4E] transition-colors"
+                className="hover:text-[#006A4E] transition-colors p-1"
               >
-                <ImageIcon className="w-5 h-5" />
+                <ImageIcon className="w-4.5 h-4.5" />
               </button>
               <button 
                 type="button" 
                 onClick={handleMicClick}
-                className={`transition-colors ${isRecording ? 'text-red-500' : 'hover:text-[#006A4E]'}`}
+                className={`transition-colors p-1 ${isRecording ? 'text-red-500' : 'hover:text-[#006A4E]'}`}
               >
-                <Mic className="w-5 h-5" />
+                <Mic className="w-4.5 h-4.5" />
               </button>
             </div>
           </div>
@@ -406,7 +445,7 @@ export default function GeminiChatScreen() {
             <button 
               type="submit"
               disabled={isLoading}
-              className="w-10 h-10 bg-[#006A4E] rounded-full flex items-center justify-center text-white flex-shrink-0 disabled:opacity-50 shadow-sm"
+              className="w-9 h-9 bg-[#006A4E] rounded-full flex items-center justify-center text-white flex-shrink-0 disabled:opacity-50 shadow-sm"
             >
               <Send className="w-4 h-4 ml-0.5" />
             </button>
