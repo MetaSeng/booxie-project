@@ -1,11 +1,14 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { signInWithGoogle } from '../firebase';
-import { User, Mail, Lock, ArrowLeft } from 'lucide-react';
+import { signInWithGoogle, signUpWithEmail } from '../firebase';
+import { User, Mail, Lock, ArrowLeft, Loader2 } from 'lucide-react';
 import BooxieLogo from '../components/BooxieLogo';
 
 export default function SignupScreen() {
   const navigate = useNavigate();
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
@@ -15,16 +18,45 @@ export default function SignupScreen() {
       setError('');
       await signInWithGoogle();
       navigate('/');
-    } catch (err) {
-      setError('Failed to sign up with Google. Please try again.');
+    } catch (err: any) {
+      console.error(err);
+      setError(err.message || 'Failed to sign up with Google. Please try again.');
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleEmailSignup = (e: React.FormEvent) => {
+  const handleEmailSignup = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError('Email signup is not yet configured. Please use Google.');
+    if (!name || !email || !password) {
+      setError('Please fill in all fields');
+      return;
+    }
+
+    if (password.length < 6) {
+      setError('Password must be at least 6 characters');
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      setError('');
+      await signUpWithEmail(email, password, name);
+      navigate('/');
+    } catch (err: any) {
+      console.error(err);
+      if (err.code === 'auth/email-already-in-use') {
+        setError('Email already in use');
+      } else if (err.code === 'auth/invalid-email') {
+        setError('Invalid email format');
+      } else if (err.code === 'auth/weak-password') {
+        setError('Password is too weak');
+      } else {
+        setError('Failed to sign up. Please check your credentials or enable Email/Password auth in Firebase Console.');
+      }
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -67,8 +99,11 @@ export default function SignupScreen() {
             </div>
             <input
               type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
               placeholder="Your Name"
               className="w-full pl-11 pr-4 py-3.5 bg-white border border-gray-200 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#007A5A] focus:border-transparent transition-all"
+              required
             />
           </div>
 
@@ -78,8 +113,11 @@ export default function SignupScreen() {
             </div>
             <input
               type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
               placeholder="Your Email"
               className="w-full pl-11 pr-4 py-3.5 bg-white border border-gray-200 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#007A5A] focus:border-transparent transition-all"
+              required
             />
           </div>
 
@@ -89,16 +127,20 @@ export default function SignupScreen() {
             </div>
             <input
               type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
               placeholder="Password"
               className="w-full pl-11 pr-4 py-3.5 bg-white border border-gray-200 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#007A5A] focus:border-transparent transition-all"
+              required
             />
           </div>
 
           <button
             type="submit"
-            className="w-full bg-[#007A5A] text-white py-3.5 rounded-xl font-bold text-base shadow-md hover:bg-[#006349] active:scale-[0.98] transition-all mt-2"
+            disabled={isLoading}
+            className="w-full bg-[#007A5A] text-white py-3.5 rounded-xl font-bold text-base shadow-md hover:bg-[#006349] active:scale-[0.98] transition-all mt-2 flex items-center justify-center gap-2 disabled:opacity-70"
           >
-            Sign Up
+            {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Sign Up'}
           </button>
         </form>
 

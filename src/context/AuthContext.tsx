@@ -17,7 +17,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
-        // Ensure user document exists
+        // Ensure user document exists (only if it doesn't already)
         try {
           const userRef = doc(db, 'users', firebaseUser.uid);
           const userSnap = await getDoc(userRef);
@@ -34,7 +34,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             });
           }
         } catch (error) {
-          handleFirestoreError(error, OperationType.WRITE, `users/${firebaseUser.uid}`);
+          // Ignore errors if document already exists or other issues (handled in signUpWithEmail)
+          console.warn("AuthContext: Error checking/creating user doc", error);
         }
         setUser(firebaseUser);
       } else {

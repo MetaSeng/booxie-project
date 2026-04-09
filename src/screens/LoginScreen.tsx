@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { signInWithGoogle } from '../firebase';
-import { User, Mail, Lock, ArrowLeft } from 'lucide-react';
+import { signInWithGoogle, logInWithEmail } from '../firebase';
+import { Mail, Lock, ArrowLeft, Loader2 } from 'lucide-react';
 import BooxieLogo from '../components/BooxieLogo';
 
 export default function LoginScreen() {
   const navigate = useNavigate();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
@@ -15,16 +17,38 @@ export default function LoginScreen() {
       setError('');
       await signInWithGoogle();
       navigate('/');
-    } catch (err) {
-      setError('Failed to sign in with Google. Please try again.');
+    } catch (err: any) {
+      console.error(err);
+      setError(err.message || 'Failed to sign in with Google. Please try again.');
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleEmailLogin = (e: React.FormEvent) => {
+  const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError('Email login is not yet configured. Please use Google Login.');
+    if (!email || !password) {
+      setError('Please fill in all fields');
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      setError('');
+      await logInWithEmail(email, password);
+      navigate('/');
+    } catch (err: any) {
+      console.error(err);
+      if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password') {
+        setError('Invalid email or password');
+      } else if (err.code === 'auth/invalid-email') {
+        setError('Invalid email format');
+      } else {
+        setError('Failed to log in. Please check your credentials or enable Email/Password auth in Firebase Console.');
+      }
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -50,7 +74,7 @@ export default function LoginScreen() {
         {/* Middle Section: Title & Subtitle */}
         <div className="text-center mb-8">
           <h2 className="text-2xl font-bold text-gray-900 mb-2">Log In</h2>
-          <p className="text-gray-500 text-sm">We are here to help you!</p>
+          <p className="text-gray-500 text-sm">Welcome back to Booxie!</p>
         </div>
         
         {error && (
@@ -63,23 +87,15 @@ export default function LoginScreen() {
         <form onSubmit={handleEmailLogin} className="space-y-4 mb-6">
           <div className="relative">
             <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-              <User className="h-5 w-5 text-gray-400" />
-            </div>
-            <input
-              type="text"
-              placeholder="Your Name"
-              className="w-full pl-11 pr-4 py-3.5 bg-white border border-gray-200 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#007A5A] focus:border-transparent transition-all"
-            />
-          </div>
-
-          <div className="relative">
-            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
               <Mail className="h-5 w-5 text-gray-400" />
             </div>
             <input
               type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
               placeholder="Your Email"
               className="w-full pl-11 pr-4 py-3.5 bg-white border border-gray-200 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#007A5A] focus:border-transparent transition-all"
+              required
             />
           </div>
 
@@ -89,16 +105,20 @@ export default function LoginScreen() {
             </div>
             <input
               type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
               placeholder="Password"
               className="w-full pl-11 pr-4 py-3.5 bg-white border border-gray-200 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#007A5A] focus:border-transparent transition-all"
+              required
             />
           </div>
 
           <button
             type="submit"
-            className="w-full bg-[#007A5A] text-white py-3.5 rounded-xl font-bold text-base shadow-md hover:bg-[#006349] active:scale-[0.98] transition-all mt-2"
+            disabled={isLoading}
+            className="w-full bg-[#007A5A] text-white py-3.5 rounded-xl font-bold text-base shadow-md hover:bg-[#006349] active:scale-[0.98] transition-all mt-2 flex items-center justify-center gap-2 disabled:opacity-70"
           >
-            Log In
+            {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Log In'}
           </button>
         </form>
 
@@ -112,13 +132,6 @@ export default function LoginScreen() {
         {/* Secondary Actions */}
         <div className="space-y-3 mb-8">
           <button
-            onClick={() => navigate('/')}
-            className="w-full bg-transparent border border-[#007A5A] text-[#007A5A] py-3.5 rounded-xl font-semibold text-sm hover:bg-[#E6F4EA] active:scale-[0.98] transition-all"
-          >
-            Continue as guest
-          </button>
-          
-          <button
             onClick={handleGoogleLogin}
             disabled={isLoading}
             className="w-full bg-white border border-gray-200 text-gray-700 py-3.5 rounded-xl font-semibold text-sm shadow-sm hover:bg-gray-50 active:scale-[0.98] transition-all flex items-center justify-center gap-3 disabled:opacity-50"
@@ -128,18 +141,17 @@ export default function LoginScreen() {
           </button>
 
           <button
-            onClick={() => setError('Facebook login is not configured.')}
-            className="w-full bg-white border border-gray-200 text-gray-700 py-3.5 rounded-xl font-semibold text-sm shadow-sm hover:bg-gray-50 active:scale-[0.98] transition-all flex items-center justify-center gap-3"
+            onClick={() => navigate('/')}
+            className="w-full bg-transparent border border-[#007A5A] text-[#007A5A] py-3.5 rounded-xl font-semibold text-sm hover:bg-[#E6F4EA] active:scale-[0.98] transition-all"
           >
-            <img src="https://upload.wikimedia.org/wikipedia/commons/b/b8/2021_Facebook_icon.svg" alt="Facebook" className="w-5 h-5" />
-            Continue with Facebook
+            Continue as guest
           </button>
         </div>
 
         {/* Footer */}
         <div className="mt-auto text-center pb-4">
           <p className="text-sm text-gray-500">
-            Do you already have an account?{' '}
+            Don't have an account?{' '}
             <button onClick={() => navigate('/signup')} className="text-[#007A5A] font-bold hover:underline">
               Sign Up
             </button>

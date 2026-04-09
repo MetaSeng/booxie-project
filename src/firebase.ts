@@ -1,6 +1,14 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+import { 
+  getAuth, 
+  GoogleAuthProvider, 
+  signInWithPopup, 
+  signOut, 
+  createUserWithEmailAndPassword, 
+  signInWithEmailAndPassword,
+  updateProfile
+} from 'firebase/auth';
+import { getFirestore, doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import firebaseConfig from '../firebase-applet-config.json';
 
@@ -21,6 +29,40 @@ export const signInWithGoogle = async () => {
     return result.user;
   } catch (error) {
     console.error("Error signing in with Google", error);
+    throw error;
+  }
+};
+
+export const signUpWithEmail = async (email: string, pass: string, name: string) => {
+  try {
+    const result = await createUserWithEmailAndPassword(auth, email, pass);
+    await updateProfile(result.user, { displayName: name });
+    
+    // Create user document immediately to ensure name is correct
+    const userRef = doc(db, 'users', result.user.uid);
+    await setDoc(userRef, {
+      uid: result.user.uid,
+      name: name,
+      email: email,
+      photoURL: '',
+      role: 'user',
+      rewardPoints: 0,
+      createdAt: serverTimestamp()
+    });
+    
+    return result.user;
+  } catch (error) {
+    console.error("Error signing up with email", error);
+    throw error;
+  }
+};
+
+export const logInWithEmail = async (email: string, pass: string) => {
+  try {
+    const result = await signInWithEmailAndPassword(auth, email, pass);
+    return result.user;
+  } catch (error) {
+    console.error("Error logging in with email", error);
     throw error;
   }
 };
