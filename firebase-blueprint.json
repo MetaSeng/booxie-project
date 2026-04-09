@@ -2,116 +2,87 @@
   "entities": {
     "User": {
       "title": "User",
-      "description": "Represents a user in the Booxie marketplace.",
+      "description": "User profile information",
       "type": "object",
       "properties": {
-        "uid": { "type": "string", "description": "Firebase Auth UID" },
-        "name": { "type": "string", "description": "User's display name" },
-        "email": { "type": "string", "description": "User's email address" },
-        "photoURL": { "type": "string", "description": "User's profile picture URL" },
-        "role": { "type": "string", "enum": ["user", "admin"], "description": "User role" },
-        "rewardPoints": { "type": "number", "description": "Points earned from donations and sales" },
+        "uid": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "phone": { "type": "string" },
+        "birthday": { "type": "string" },
+        "gender": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "studentIdImage": { "type": "string" },
+        "role": { "type": "string", "enum": ["user", "admin"] },
+        "rewardPoints": { "type": "number" },
+        "favorites": { "type": "array", "items": { "type": "string" } },
         "createdAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["uid", "name", "email", "role", "rewardPoints", "createdAt"]
+      "required": ["uid", "name", "email"]
     },
-    "BookListing": {
-      "title": "BookListing",
-      "description": "A book listed for sale or donation.",
+    "Book": {
+      "title": "Book",
+      "description": "Book listing information",
       "type": "object",
       "properties": {
         "title": { "type": "string" },
         "author": { "type": "string" },
+        "price": { "type": "number" },
         "description": { "type": "string" },
-        "price": { "type": "number", "description": "Price in local currency. 0 if donation." },
-        "sellerId": { "type": "string" },
-        "sellerName": { "type": "string" },
         "imageUrl": { "type": "string" },
-        "backCoverUrl": { "type": "string" },
-        "status": { "type": "string", "enum": ["available", "sold", "donated", "hidden"] },
-        "condition": { "type": "string", "enum": ["new", "like-new", "good", "fair", "poor"] },
-        "type": { "type": "string", "enum": ["sale", "donation"] },
+        "condition": { "type": "string" },
+        "type": { "type": "string" },
+        "sellerName": { "type": "string" },
+        "sellerId": { "type": "string" },
+        "status": { "type": "string", "enum": ["available", "sold"] },
         "createdAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["title", "author", "price", "sellerId", "sellerName", "status", "condition", "type", "createdAt"]
+      "required": ["title", "author", "price", "sellerId"]
     },
     "Conversation": {
       "title": "Conversation",
-      "description": "A chat conversation between two users.",
+      "description": "Chat metadata",
       "type": "object",
       "properties": {
-        "participants": { "type": "array", "items": { "type": "string" } },
-        "bookId": { "type": "string" },
         "bookTitle": { "type": "string" },
+        "bookId": { "type": "string" },
+        "isAi": { "type": "boolean" },
         "lastMessage": { "type": "string" },
-        "updatedAt": { "type": "string", "format": "date-time" }
-      },
-      "required": ["participants", "updatedAt"]
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "participants": { "type": "array", "items": { "type": "string" } }
+      }
     },
-    "ChatMessage": {
-      "title": "ChatMessage",
-      "description": "A message within a conversation.",
+    "Message": {
+      "title": "Message",
+      "description": "Individual chat message",
       "type": "object",
       "properties": {
         "conversationId": { "type": "string" },
         "senderId": { "type": "string" },
         "text": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "audioUrl": { "type": "string" },
         "createdAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["conversationId", "senderId", "text", "createdAt"]
-    },
-    "CommunityPost": {
-      "title": "CommunityPost",
-      "description": "A post in the community hub.",
-      "type": "object",
-      "properties": {
-        "authorId": { "type": "string" },
-        "authorName": { "type": "string" },
-        "content": { "type": "string" },
-        "likesCount": { "type": "number" },
-        "commentsCount": { "type": "number" },
-        "createdAt": { "type": "string", "format": "date-time" }
-      },
-      "required": ["authorId", "authorName", "content", "likesCount", "commentsCount", "createdAt"]
-    },
-    "CommunityComment": {
-      "title": "CommunityComment",
-      "description": "A comment on a community post.",
-      "type": "object",
-      "properties": {
-        "postId": { "type": "string" },
-        "authorId": { "type": "string" },
-        "authorName": { "type": "string" },
-        "content": { "type": "string" },
-        "createdAt": { "type": "string", "format": "date-time" }
-      },
-      "required": ["postId", "authorId", "authorName", "content", "createdAt"]
+      "required": ["senderId", "createdAt"]
     }
   },
   "firestore": {
     "/users/{userId}": {
-      "schema": { "$ref": "#/entities/User" },
+      "schema": "User",
       "description": "User profiles"
     },
     "/books/{bookId}": {
-      "schema": { "$ref": "#/entities/BookListing" },
+      "schema": "Book",
       "description": "Book listings"
     },
-    "/conversations/{conversationId}": {
-      "schema": { "$ref": "#/entities/Conversation" },
+    "/conversations/{convId}": {
+      "schema": "Conversation",
       "description": "Chat conversations"
     },
-    "/conversations/{conversationId}/messages/{messageId}": {
-      "schema": { "$ref": "#/entities/ChatMessage" },
-      "description": "Messages in a conversation"
-    },
-    "/communityPosts/{postId}": {
-      "schema": { "$ref": "#/entities/CommunityPost" },
-      "description": "Community posts"
-    },
-    "/communityPosts/{postId}/comments/{commentId}": {
-      "schema": { "$ref": "#/entities/CommunityComment" },
-      "description": "Comments on community posts"
+    "/conversations/{convId}/messages/{msgId}": {
+      "schema": "Message",
+      "description": "Chat messages"
     }
   }
 }

@@ -90,8 +90,16 @@ export default function SignupScreen() {
     try {
       setIsLoading(true);
       setError('');
-      // In a real app, we'd also save phone, birthday, gender, and profileImage to Firestore
-      await signUpWithEmail(email, password, name);
+      await signUpWithEmail(
+        email, 
+        password, 
+        name, 
+        phone, 
+        birthday, 
+        gender, 
+        profileImage,
+        studentIdImage
+      );
       localStorage.removeItem('guestMode');
       navigate('/');
     } catch (err: any) {

@@ -11,8 +11,10 @@ export function getGeminiAI(): GoogleGenAI | null {
                    
     // If key is missing or invalid, use the hardcoded fallback
     if (!apiKey || apiKey === 'undefined' || apiKey === 'MY_GEMINI_API_KEY' || apiKey === '') {
-      apiKey = 'AIzaSyBbf7w3fmAyAIs4nVwuo2eZSjlEoUf-xi8';
+      apiKey = process.env.GEMINI_API_KEY;
     }
+    
+    if (!apiKey) return null;
     
     aiInstance = new GoogleGenAI({ apiKey });
   }

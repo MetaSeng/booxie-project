@@ -6,6 +6,7 @@ import { useAuth } from '../context/AuthContext';
 import { ArrowLeft, Send, CheckCircle, MoreVertical, Phone, Video, Camera, Image as ImageIcon, Smile, Mic, Check, CheckCheck } from 'lucide-react';
 import { format } from 'date-fns';
 import { getGeminiAI } from '../lib/gemini';
+import { ThinkingLevel } from '@google/genai';
 
 export default function ChatScreen() {
   const { id } = useParams();
@@ -161,7 +162,8 @@ export default function ChatScreen() {
           model: 'gemini-3.1-pro-preview',
           contents: aiContents,
           config: {
-            systemInstruction: "You are Booxie AI Help, a friendly customer support chatbot for a second-hand book marketplace called Booxie. Keep your answers short, helpful, and friendly. You can suggest books, give price recommendations, and answer FAQs."
+            systemInstruction: "You are Booxie AI Help, a friendly customer support chatbot for a second-hand book marketplace called Booxie. Keep your answers short, helpful, and friendly. You can suggest books, give price recommendations, and answer FAQs.",
+            thinkingConfig: { thinkingLevel: ThinkingLevel.HIGH }
           }
         });
         

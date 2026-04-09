@@ -33,7 +33,16 @@ export const signInWithGoogle = async () => {
   }
 };
 
-export const signUpWithEmail = async (email: string, pass: string, name: string) => {
+export const signUpWithEmail = async (
+  email: string, 
+  pass: string, 
+  name: string, 
+  phone: string, 
+  birthday?: string, 
+  gender?: string, 
+  profileImage?: string | null,
+  studentIdImage?: string | null
+) => {
   try {
     const result = await createUserWithEmailAndPassword(auth, email, pass);
     await updateProfile(result.user, { displayName: name });
@@ -44,7 +53,11 @@ export const signUpWithEmail = async (email: string, pass: string, name: string)
       uid: result.user.uid,
       name: name,
       email: email,
-      photoURL: '',
+      phone: phone,
+      birthday: birthday || '',
+      gender: gender || '',
+      photoURL: profileImage || '',
+      studentIdImage: studentIdImage || '',
       role: 'user',
       rewardPoints: 0,
       createdAt: serverTimestamp()

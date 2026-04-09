@@ -111,7 +111,7 @@ export default function GeminiChatScreen() {
     }
 
     chatRef.current = ai.chats.create({
-      model: 'gemini-3-flash-preview',
+      model: thinkingMode ? 'gemini-3.1-pro-preview' : 'gemini-3-flash-preview',
       config
     });
   }, [thinkingMode]);

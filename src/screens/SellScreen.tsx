@@ -2,6 +2,7 @@ import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Webcam from 'react-webcam';
 import { getGeminiAI } from '../lib/gemini';
+import { ThinkingLevel } from '@google/genai';
 import { Loader2, X } from 'lucide-react';
 
 const BankInvoiceIcon = () => (
@@ -69,12 +70,15 @@ export default function SellScreen() {
           return;
         }
         const response = await ai.models.generateContent({
-          model: 'gemini-3-flash-preview',
+          model: 'gemini-3.1-pro-preview',
           contents: {
             parts: [
               { text: 'Analyze this image. If there is a clear book cover, extract the book title and author. Then provide a brief description. Since this is a secondhand book, recommend a lower price between 3 and 9 USD. Return ONLY a valid JSON object with keys: "detected" (boolean), "title" (string), "author" (string), "description" (string), and "price" (number). If no clear book cover is found, return {"detected": false}. Do not include markdown formatting.' },
               { inlineData: { data: base64String, mimeType: 'image/jpeg' } }
             ]
+          },
+          config: {
+            thinkingConfig: { thinkingLevel: ThinkingLevel.HIGH }
           }
         });
 
@@ -103,12 +107,15 @@ export default function SellScreen() {
           return;
         }
         const response = await ai.models.generateContent({
-          model: 'gemini-3-flash-preview',
+          model: 'gemini-3.1-pro-preview',
           contents: {
             parts: [
               { text: 'Analyze this image. If it is a back cover of a book (often containing a barcode, blurb, or ISBN), return ONLY a valid JSON object with {"detected": true}. Otherwise return {"detected": false}. Do not include markdown formatting.' },
               { inlineData: { data: base64String, mimeType: 'image/jpeg' } }
             ]
+          },
+          config: {
+            thinkingConfig: { thinkingLevel: ThinkingLevel.HIGH }
           }
         });
 

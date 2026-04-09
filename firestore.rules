@@ -7,76 +7,62 @@ service cloud.firestore {
     // ===============================================================
     //
     // Collection: users
-    // Document ID: {userId}
+    // Document ID: {userId} (matches auth.uid)
     // Fields:
     //   - uid: string (required)
     //   - name: string (required)
-    //   - email: string (required)
+    //   - email: string (required, email format)
+    //   - phone: string (optional)
+    //   - birthday: string (optional)
+    //   - gender: string (optional)
     //   - photoURL: string (optional)
-    //   - role: string (required, 'user' or 'admin')
-    //   - rewardPoints: number (required)
-    //   - createdAt: timestamp (required)
+    //   - studentIdImage: string (optional)
+    //   - role: string (enum: ['user', 'admin'])
+    //   - rewardPoints: number
+    //   - favorites: list (strings)
+    //   - createdAt: timestamp
     //
     // Collection: books
     // Document ID: {bookId}
     // Fields:
     //   - title: string (required)
     //   - author: string (required)
-    //   - category: string (optional)
-    //   - isbn: string (optional)
-    //   - description: string (optional)
     //   - price: number (required)
+    //   - description: string
+    //   - imageUrl: string
+    //   - condition: string
+    //   - type: string
+    //   - sellerName: string
     //   - sellerId: string (required)
-    //   - sellerName: string (required)
-    //   - imageUrl: string (optional)
-    //   - backCoverUrl: string (optional)
-    //   - status: string (required, 'available', 'sold', 'donated', 'hidden')
-    //   - condition: string (required, 'new', 'like-new', 'good', 'fair', 'poor', 'used')
-    //   - type: string (required, 'sale', 'donation')
-    //   - createdAt: timestamp (required)
+    //   - status: string (enum: ['available', 'sold'])
+    //   - createdAt: timestamp
     //
     // Collection: conversations
-    // Document ID: {conversationId}
+    // Document ID: {convId}
     // Fields:
-    //   - participants: list of strings (required)
-    //   - bookId: string (optional)
-    //   - bookTitle: string (optional)
-    //   - lastMessage: string (optional)
-    //   - updatedAt: timestamp (required)
+    //   - bookTitle: string
+    //   - bookId: string
+    //   - isAi: bool
+    //   - lastMessage: string
+    //   - updatedAt: timestamp
+    //   - participants: list (strings)
     //
-    // Collection: conversations/{conversationId}/messages
-    // Document ID: {messageId}
+    // Collection: conversations/{convId}/messages
+    // Document ID: {msgId}
     // Fields:
-    //   - conversationId: string (required)
+    //   - conversationId: string
     //   - senderId: string (required)
-    //   - text: string (required)
-    //   - createdAt: timestamp (required)
-    //
-    // Collection: communityPosts
-    // Document ID: {postId}
-    // Fields:
-    //   - authorId: string (required)
-    //   - authorName: string (required)
-    //   - authorPhoto: string (optional)
-    //   - content: string (required)
-    //   - likedBy: list of strings (required)
-    //   - comments: list of objects (required)
-    //   - createdAt: timestamp (required)
-    //
-    // Collection: communityPosts/{postId}/comments
-    // Document ID: {commentId}
-    // Fields:
-    //   - postId: string (required)
-    //   - authorId: string (required)
-    //   - authorName: string (required)
-    //   - content: string (required)
-    //   - createdAt: timestamp (required)
+    //   - text: string
+    //   - imageUrl: string
+    //   - audioUrl: string
+    //   - createdAt: timestamp
     //
     // ===============================================================
 
     // ===============================================================
     // Helper Functions
     // ===============================================================
+    
     function isAuthenticated() {
       return request.auth != null;
     }
@@ -91,23 +77,22 @@ service cloud.firestore {
           (request.auth.token.email == "sh6025010078@camtech.edu.kh" && request.auth.token.email_verified == true));
     }
 
-    function hasRequiredFields(fields) {
-      return request.resource.data.keys().hasAll(fields);
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function isValidUrl(url) {
+      return url is string && (url.matches("^https://.*") || url.matches("^http://.*") || url.matches("^data:image/.*"));
     }
 
     function hasOnlyAllowedFields(fields) {
       return request.resource.data.keys().hasOnly(fields);
     }
 
-    function validStringLength(field, minLen, maxLen) {
-      return request.resource.data[field] is string &&
-        request.resource.data[field].size() >= minLen &&
-        request.resource.data[field].size() <= maxLen;
-    }
-
-    function isValidEmail(email) {
-      return email is string &&
-        email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    function isRecent(timestamp) {
+      return timestamp is timestamp && 
+             timestamp > request.time - duration.value(5, 'm') &&
+             timestamp <= request.time;
     }
 
     // ===============================================================
@@ -115,69 +100,20 @@ service cloud.firestore {
     // ===============================================================
 
     function isValidUser(data) {
-      return hasOnlyAllowedFields(['uid', 'name', 'email', 'photoURL', 'role', 'rewardPoints', 'createdAt']) &&
-             validStringLength('uid', 1, 100) &&
-             validStringLength('name', 1, 100) &&
+      return data.uid is string &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
              isValidEmail(data.email) &&
-             (!('photoURL' in data) || data.photoURL is string) &&
-             data.role in ['user', 'admin'] &&
-             data.rewardPoints is number && data.rewardPoints >= 0 &&
-             data.createdAt is timestamp;
+             (!('phone' in data) || (data.phone is string && data.phone.size() < 20)) &&
+             (!('role' in data) || data.role in ['user', 'admin']) &&
+             (!('rewardPoints' in data) || data.rewardPoints is number);
     }
 
     function isValidBook(data) {
-      return hasOnlyAllowedFields(['title', 'author', 'category', 'isbn', 'description', 'price', 'sellerId', 'sellerName', 'imageUrl', 'backCoverUrl', 'status', 'condition', 'type', 'createdAt']) &&
-             validStringLength('title', 0, 500) &&
-             validStringLength('author', 0, 200) &&
-             (!('category' in data) || validStringLength('category', 0, 100)) &&
-             (!('isbn' in data) || validStringLength('isbn', 0, 100)) &&
-             (!('description' in data) || validStringLength('description', 0, 5000)) &&
+      return data.title is string && data.title.size() > 0 && data.title.size() < 200 &&
+             data.author is string && data.author.size() > 0 && data.author.size() < 100 &&
              data.price is number && data.price >= 0 &&
-             validStringLength('sellerId', 1, 100) &&
-             validStringLength('sellerName', 1, 100) &&
-             (!('imageUrl' in data) || (data.imageUrl is string && data.imageUrl.size() < 2000000)) &&
-             (!('backCoverUrl' in data) || (data.backCoverUrl is string && data.backCoverUrl.size() < 2000000)) &&
-             data.status in ['available', 'sold', 'donated', 'hidden'] &&
-             data.condition in ['new', 'like-new', 'good', 'fair', 'poor', 'used'] &&
-             data.type in ['sale', 'donation'] &&
-             data.createdAt is timestamp;
-    }
-
-    function isValidConversation(data) {
-      return hasOnlyAllowedFields(['participants', 'bookId', 'bookTitle', 'lastMessage', 'updatedAt']) &&
-             data.participants is list && data.participants.size() >= 2 && data.participants.size() <= 10 &&
-             (!('bookId' in data) || data.bookId is string) &&
-             (!('bookTitle' in data) || data.bookTitle is string) &&
-             (!('lastMessage' in data) || data.lastMessage is string) &&
-             data.updatedAt is timestamp;
-    }
-
-    function isValidMessage(data) {
-      return hasOnlyAllowedFields(['conversationId', 'senderId', 'text', 'createdAt']) &&
-             validStringLength('conversationId', 1, 100) &&
-             validStringLength('senderId', 1, 100) &&
-             validStringLength('text', 1, 2000) &&
-             data.createdAt is timestamp;
-    }
-
-    function isValidCommunityPost(data) {
-      return hasOnlyAllowedFields(['authorId', 'authorName', 'authorPhoto', 'content', 'likedBy', 'comments', 'createdAt']) &&
-             validStringLength('authorId', 1, 100) &&
-             validStringLength('authorName', 1, 100) &&
-             (!('authorPhoto' in data) || data.authorPhoto == null || data.authorPhoto is string) &&
-             validStringLength('content', 1, 5000) &&
-             data.likedBy is list &&
-             data.comments is list &&
-             data.createdAt is timestamp;
-    }
-
-    function isValidCommunityComment(data) {
-      return hasOnlyAllowedFields(['postId', 'authorId', 'authorName', 'content', 'createdAt']) &&
-             validStringLength('postId', 1, 100) &&
-             validStringLength('authorId', 1, 100) &&
-             validStringLength('authorName', 1, 100) &&
-             validStringLength('content', 1, 2000) &&
-             data.createdAt is timestamp;
+             data.sellerId is string &&
+             (!('status' in data) || data.status in ['available', 'sold']);
     }
 
     // ===============================================================
@@ -185,109 +121,61 @@ service cloud.firestore {
     // ===============================================================
 
     match /users/{userId} {
-      // Anyone authenticated can read user profiles (needed for marketplace)
-      allow read: if isAuthenticated();
+      // Users can read their own profile. Publicly, only non-sensitive info should be visible, 
+      // but for this app we'll restrict to owner/admin for safety.
+      allow read: if isOwner(userId) || isAdmin();
       
-      // Create: User can create their own profile. Role must be 'user' unless admin.
+      // Allow creation if the user is authenticated and the data is valid.
+      // Users cannot set their own role to admin unless they are already an admin.
       allow create: if isAuthenticated() && 
-                    isOwner(userId) && 
-                    isValidUser(request.resource.data) && 
-                    request.resource.data.uid == userId &&
-                    (request.resource.data.role == 'user' || isAdmin());
-                    
-      // Update: User can update their own profile, but cannot change role or uid.
-      allow update: if isAuthenticated() && 
-                    isOwner(userId) && 
-                    isValidUser(request.resource.data) && 
-                    request.resource.data.uid == resource.data.uid &&
-                    (request.resource.data.role == resource.data.role || isAdmin());
+                      isValidUser(request.resource.data) && 
+                      (request.resource.data.role == 'user' || isAdmin());
+      
+      // Allow updates to own profile, but cannot change role or uid.
+      allow update: if isOwner(userId) && 
+                      isValidUser(request.resource.data) && 
+                      request.resource.data.role == resource.data.role &&
+                      request.resource.data.uid == resource.data.uid;
     }
 
     match /books/{bookId} {
-      // Anyone can read books (including guests)
+      // Books are publicly readable.
       allow read: if true;
       
-      // Create: Authenticated users can create books. sellerId must match their uid.
+      // Authenticated users can create book listings.
       allow create: if isAuthenticated() && 
-                    isValidBook(request.resource.data) && 
-                    request.resource.data.sellerId == request.auth.uid;
-                    
-      // Update: Only the seller can update the book. sellerId cannot change.
+                      isValidBook(request.resource.data) && 
+                      request.resource.data.sellerId == request.auth.uid;
+      
+      // Sellers can update their own books.
       allow update: if isAuthenticated() && 
-                    resource.data.sellerId == request.auth.uid &&
-                    isValidBook(request.resource.data) && 
-                    request.resource.data.sellerId == resource.data.sellerId;
-                    
-      // Delete: Only the seller can delete
-      allow delete: if isAuthenticated() && resource.data.sellerId == request.auth.uid;
+                      (resource.data.sellerId == request.auth.uid || isAdmin()) &&
+                      isValidBook(request.resource.data) &&
+                      request.resource.data.sellerId == resource.data.sellerId;
+                      
+      // Sellers or admins can delete books.
+      allow delete: if isAuthenticated() && (resource.data.sellerId == request.auth.uid || isAdmin());
     }
 
-    match /conversations/{conversationId} {
-      // Read: Only participants can read
-      allow read: if isAuthenticated() && request.auth.uid in resource.data.participants;
+    match /conversations/{convId} {
+      // Users can read conversations they are part of.
+      allow read: if isAuthenticated() && (request.auth.uid in resource.data.participants || resource.data.isAi == true);
       
-      // Create: Authenticated users can create, must be in participants
-      allow create: if isAuthenticated() && 
-                    isValidConversation(request.resource.data) && 
-                    request.auth.uid in request.resource.data.participants;
-                    
-      // Update: Only participants can update (e.g., lastMessage, updatedAt)
-      allow update: if isAuthenticated() && 
-                    request.auth.uid in resource.data.participants &&
-                    isValidConversation(request.resource.data) &&
-                    request.auth.uid in request.resource.data.participants; // participants list can change but user must remain in it or be in it
+      // Allow creation of conversations.
+      allow create: if isAuthenticated();
+      
+      // Allow updates to metadata (lastMessage, updatedAt).
+      allow update: if isAuthenticated();
+
+      match /messages/{msgId} {
+        allow read: if isAuthenticated();
+        allow create: if isAuthenticated() && request.resource.data.senderId == request.auth.uid;
+      }
     }
 
-    match /conversations/{conversationId}/messages/{messageId} {
-      // Read: Only participants of the parent conversation can read
-      allow read: if isAuthenticated() && 
-                  request.auth.uid in get(/databases/$(database)/documents/conversations/$(conversationId)).data.participants;
-      
-      // Create: Only participants can create messages. senderId must match uid.
-      allow create: if isAuthenticated() && 
-                    isValidMessage(request.resource.data) && 
-                    request.resource.data.senderId == request.auth.uid &&
-                    request.auth.uid in get(/databases/$(database)/documents/conversations/$(conversationId)).data.participants;
-    }
-
-    match /communityPosts/{postId} {
-      // Anyone can read community posts (including guests)
-      allow read: if true;
-      
-      allow create: if isAuthenticated() && 
-                    isValidCommunityPost(request.resource.data) &&
-                    request.resource.data.authorId == request.auth.uid;
-                    
-      allow update: if isAuthenticated() && 
-                    (
-                      // Author can update content
-                      (request.auth.uid == resource.data.authorId && 
-                       request.resource.data.diff(resource.data).affectedKeys().hasOnly(['content']) &&
-                       validStringLength('content', 1, 5000)) ||
-                      // Anyone can update likedBy or comments (atomic updates)
-                      (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likedBy', 'comments']) &&
-                       (!('likedBy' in request.resource.data) || request.resource.data.likedBy is list) &&
-                       (!('comments' in request.resource.data) || request.resource.data.comments is list))
-                    );
-                    
-      allow delete: if isAuthenticated() && resource.data.authorId == request.auth.uid;
-    }
-
-    match /communityPosts/{postId}/comments/{commentId} {
-      allow read: if isAuthenticated();
-      
-      allow create: if isAuthenticated() && 
-                    isValidCommunityComment(request.resource.data) &&
-                    request.resource.data.authorId == request.auth.uid &&
-                    request.resource.data.postId == postId;
-                    
-      allow update: if isAuthenticated() && 
-                    isValidCommunityComment(request.resource.data) &&
-                    request.resource.data.authorId == resource.data.authorId &&
-                    request.auth.uid == resource.data.authorId &&
-                    request.resource.data.postId == resource.data.postId;
-                    
-      allow delete: if isAuthenticated() && resource.data.authorId == request.auth.uid;
+    // Default deny
+    match /{path=**} {
+      allow read, write: if false;
     }
   }
 }
