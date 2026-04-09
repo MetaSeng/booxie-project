@@ -49,7 +49,10 @@ export default function WelcomeScreen() {
         </button>
 
         <button
-          onClick={() => navigate('/')}
+          onClick={() => {
+            localStorage.setItem('guestMode', 'true');
+            navigate('/');
+          }}
           className="w-full text-gray-500 py-2 font-medium text-sm hover:text-gray-700 transition-colors"
         >
           Continue as Guest

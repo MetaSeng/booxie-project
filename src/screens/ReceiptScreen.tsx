@@ -78,7 +78,7 @@ export default function ReceiptScreen() {
 
       <div className="flex-1 p-4">
         {/* Receipt Card */}
-        <div ref={receiptRef} className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden relative">
+        <div ref={receiptRef} className="bg-white rounded-3xl shadow-sm border border-[#f3f4f6] overflow-hidden relative">
           {/* Decorative "cut" edges at top and bottom */}
           <div className="absolute top-0 left-0 right-0 flex justify-between px-4 -translate-y-1/2">
              {[...Array(10)].map((_, i) => (
@@ -93,47 +93,47 @@ export default function ReceiptScreen() {
                 <span className="font-bold text-[#006A4E]">Booxie</span>
               </div>
               <div className="text-right">
-                <p className="text-[10px] text-gray-400 uppercase font-bold tracking-wider">Order ID</p>
-                <p className="text-sm font-mono font-bold text-gray-900">{orderId}</p>
+                <p className="text-[10px] text-[#9ca3af] uppercase font-bold tracking-wider">Order ID</p>
+                <p className="text-sm font-mono font-bold text-[#111827]">{orderId}</p>
               </div>
             </div>
 
             <div className="space-y-4 mb-8">
               <div className="flex justify-between text-sm">
-                <span className="text-gray-500">Date</span>
-                <span className="text-gray-900 font-medium">{date}</span>
+                <span className="text-[#6b7280]">Date</span>
+                <span className="text-[#111827] font-medium">{date}</span>
               </div>
               <div className="flex justify-between text-sm">
-                <span className="text-gray-500">Payment Method</span>
-                <span className="text-gray-900 font-medium">{paymentMethod}</span>
+                <span className="text-[#6b7280]">Payment Method</span>
+                <span className="text-[#111827] font-medium">{paymentMethod}</span>
               </div>
             </div>
 
-            <div className="w-full h-px border-t border-dashed border-gray-200 mb-6"></div>
+            <div className="w-full h-px border-t border-dashed border-[#e5e7eb] mb-6"></div>
 
             {/* Items */}
             <div className="space-y-4 mb-6">
-              <p className="text-[10px] text-gray-400 uppercase font-bold tracking-wider">Items</p>
+              <p className="text-[10px] text-[#9ca3af] uppercase font-bold tracking-wider">Items</p>
               {items.map((item: any, idx: number) => (
                 <div key={idx} className="flex justify-between items-start gap-4">
                   <div className="flex-1">
-                    <p className="text-sm font-bold text-gray-900 line-clamp-1">{item.title}</p>
-                    <p className="text-xs text-gray-500">Qty: {item.quantity || 1}</p>
+                    <p className="text-sm font-bold text-[#111827] line-clamp-1">{item.title}</p>
+                    <p className="text-xs text-[#6b7280]">Qty: {item.quantity || 1}</p>
                   </div>
-                  <span className="text-sm font-bold text-gray-900">${(item.price * (item.quantity || 1)).toFixed(2)}</span>
+                  <span className="text-sm font-bold text-[#111827]">${(item.price * (item.quantity || 1)).toFixed(2)}</span>
                 </div>
               ))}
             </div>
 
-            <div className="w-full h-px border-t border-dashed border-gray-200 mb-6"></div>
+            <div className="w-full h-px border-t border-dashed border-[#e5e7eb] mb-6"></div>
 
             {/* Totals */}
             <div className="space-y-3 mb-8">
-              <div className="flex justify-between text-sm text-gray-600">
+              <div className="flex justify-between text-sm text-[#4b5563]">
                 <span>Subtotal</span>
                 <span>${subtotal.toFixed(2)}</span>
               </div>
-              <div className="flex justify-between text-sm text-gray-600">
+              <div className="flex justify-between text-sm text-[#4b5563]">
                 <span>Delivery Fee</span>
                 <span>${deliveryFee.toFixed(2)}</span>
               </div>
@@ -144,9 +144,9 @@ export default function ReceiptScreen() {
             </div>
 
             {/* Shipping Info */}
-            <div className="bg-gray-50 rounded-2xl p-4 mb-2">
-              <p className="text-[10px] text-gray-400 uppercase font-bold tracking-wider mb-2">Shipping to</p>
-              <p className="text-xs text-gray-700 font-medium leading-relaxed">
+            <div className="bg-[#f9fafb] rounded-2xl p-4 mb-2">
+              <p className="text-[10px] text-[#9ca3af] uppercase font-bold tracking-wider mb-2">Shipping to</p>
+              <p className="text-xs text-[#374151] font-medium leading-relaxed">
                 {shippingAddress.name}<br/>
                 {shippingAddress.phone}<br/>
                 {shippingAddress.address}

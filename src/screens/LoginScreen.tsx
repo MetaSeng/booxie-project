@@ -16,6 +16,7 @@ export default function LoginScreen() {
       setIsLoading(true);
       setError('');
       await signInWithGoogle();
+      localStorage.removeItem('guestMode');
       navigate('/');
     } catch (err: any) {
       console.error(err);
@@ -36,6 +37,7 @@ export default function LoginScreen() {
       setIsLoading(true);
       setError('');
       await logInWithEmail(email, password);
+      localStorage.removeItem('guestMode');
       navigate('/');
     } catch (err: any) {
       console.error(err);
@@ -141,7 +143,10 @@ export default function LoginScreen() {
           </button>
 
           <button
-            onClick={() => navigate('/')}
+            onClick={() => {
+              localStorage.setItem('guestMode', 'true');
+              navigate('/');
+            }}
             className="w-full bg-transparent border border-[#007A5A] text-[#007A5A] py-3.5 rounded-xl font-semibold text-sm hover:bg-[#E6F4EA] active:scale-[0.98] transition-all"
           >
             Continue as guest

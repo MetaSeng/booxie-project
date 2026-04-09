@@ -1,35 +1,84 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { signInWithGoogle, signUpWithEmail } from '../firebase';
-import { User, Mail, Lock, ArrowLeft, Loader2 } from 'lucide-react';
-import BooxieLogo from '../components/BooxieLogo';
+import { 
+  User, Mail, Lock, ArrowLeft, Loader2, Camera, Phone, 
+  Calendar, ChevronDown, Facebook, Plus, X 
+} from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 export default function SignupScreen() {
   const navigate = useNavigate();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const studentIdInputRef = useRef<HTMLInputElement>(null);
+  
+  // Required Fields
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [phone, setPhone] = useState('');
+  
+  // Optional Fields
+  const [birthday, setBirthday] = useState('');
+  const [gender, setGender] = useState('');
+  const [profileImage, setProfileImage] = useState<string | null>(null);
+  const [studentIdImage, setStudentIdImage] = useState<string | null>(null);
+  const [showOptional, setShowOptional] = useState(false);
+  
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+
+  const isFormValid = name && email && password && phone;
+
+  const handleImageClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setProfileImage(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleStudentIdChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setStudentIdImage(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   const handleGoogleSignup = async () => {
     try {
       setIsLoading(true);
       setError('');
       await signInWithGoogle();
+      localStorage.removeItem('guestMode');
       navigate('/');
     } catch (err: any) {
       console.error(err);
-      setError(err.message || 'Failed to sign up with Google. Please try again.');
+      setError(err.message || 'Failed to sign up with Google.');
     } finally {
       setIsLoading(false);
     }
   };
 
+  const handleFacebookSignup = () => {
+    setError('Facebook sign up is coming soon!');
+  };
+
   const handleEmailSignup = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name || !email || !password) {
-      setError('Please fill in all fields');
+    if (!isFormValid) {
+      setError('Please fill in all required fields');
       return;
     }
 
@@ -41,7 +90,9 @@ export default function SignupScreen() {
     try {
       setIsLoading(true);
       setError('');
+      // In a real app, we'd also save phone, birthday, gender, and profileImage to Firestore
       await signUpWithEmail(email, password, name);
+      localStorage.removeItem('guestMode');
       navigate('/');
     } catch (err: any) {
       console.error(err);
@@ -49,10 +100,8 @@ export default function SignupScreen() {
         setError('Email already in use');
       } else if (err.code === 'auth/invalid-email') {
         setError('Invalid email format');
-      } else if (err.code === 'auth/weak-password') {
-        setError('Password is too weak');
       } else {
-        setError('Failed to sign up. Please check your credentials or enable Email/Password auth in Firebase Console.');
+        setError('Failed to sign up. Please try again.');
       }
     } finally {
       setIsLoading(false);
@@ -60,111 +109,232 @@ export default function SignupScreen() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F8FCF9] flex flex-col relative font-sans">
-      {/* Back Button */}
-      <button 
-        onClick={() => navigate('/welcome')} 
-        className="absolute top-4 left-4 mt-6 p-2 rounded-full hover:bg-gray-100 transition-colors z-10"
-      >
-        <ArrowLeft className="w-6 h-6 text-gray-800" />
-      </button>
-
-      <div className="flex-1 flex flex-col px-6 pt-16 pb-8 max-w-md mx-auto w-full">
-        
-        {/* Top Section: Mascot & App Name */}
-        <div className="flex flex-col items-center mb-8">
-          <div className="w-32 h-32 bg-[#E6F4EA] rounded-full flex items-center justify-center mb-4 shadow-inner relative overflow-hidden border-4 border-white">
-            <BooxieLogo className="w-24 h-24" />
-          </div>
-          <h1 className="text-4xl font-extrabold text-[#007A5A] tracking-tight">Booxie</h1>
+    <div className="min-h-screen bg-[#F8FCF9] flex flex-col font-sans">
+      {/* Header */}
+      <header className="px-4 pt-6 pb-2 flex items-center justify-between sticky top-0 bg-[#F8FCF9]/80 backdrop-blur-md z-20">
+        <button 
+          onClick={() => navigate('/welcome')} 
+          className="p-2 rounded-full hover:bg-gray-100 transition-colors"
+        >
+          <ArrowLeft className="w-6 h-6 text-gray-800" />
+        </button>
+        <div className="flex-1 text-center pr-10">
+          <h1 className="text-xl font-bold text-gray-900">Create Account</h1>
         </div>
+      </header>
+
+      <div className="flex-1 flex flex-col px-6 pb-12 max-w-md mx-auto w-full">
         
-        {/* Middle Section: Title & Subtitle */}
         <div className="text-center mb-8">
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">Sign Up</h2>
-          <p className="text-gray-500 text-sm">Join the Booxie community today!</p>
+          <p className="text-gray-500 text-sm">Join Booxie to buy and sell books</p>
+        </div>
+
+        {/* Profile Image Section */}
+        <div className="flex flex-col items-center mb-10">
+          <div className="relative group">
+            <div 
+              onClick={handleImageClick}
+              className="w-28 h-28 rounded-full bg-white border-4 border-white shadow-md flex items-center justify-center overflow-hidden cursor-pointer hover:opacity-90 transition-opacity"
+            >
+              {profileImage ? (
+                <img src={profileImage} alt="Profile" className="w-full h-full object-cover" />
+              ) : (
+                <div className="w-full h-full bg-[#E6F4EA] flex items-center justify-center">
+                  <User className="w-12 h-12 text-[#007A5A]" />
+                </div>
+              )}
+            </div>
+            <button 
+              onClick={handleImageClick}
+              className="absolute bottom-0 right-0 bg-[#007A5A] p-2 rounded-full border-2 border-white shadow-sm text-white hover:bg-[#006349] transition-colors"
+            >
+              <Camera className="w-4 h-4" />
+            </button>
+            <input 
+              type="file" 
+              ref={fileInputRef} 
+              onChange={handleImageChange} 
+              className="hidden" 
+              accept="image/*"
+            />
+          </div>
         </div>
         
         {error && (
-          <div className="bg-red-50 text-red-600 p-3 rounded-xl mb-6 text-sm text-center border border-red-100">
+          <motion.div 
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-red-50 text-red-600 p-3 rounded-2xl mb-6 text-sm text-center border border-red-100"
+          >
             {error}
-          </div>
+          </motion.div>
         )}
         
         {/* Form Section */}
-        <form onSubmit={handleEmailSignup} className="space-y-4 mb-6">
-          <div className="relative">
-            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-              <User className="h-5 w-5 text-gray-400" />
+        <form onSubmit={handleEmailSignup} className="space-y-4">
+          {/* Section 1: Basic Info */}
+          <div className="space-y-4">
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                <User className="h-5 w-5 text-gray-400" />
+              </div>
+              <input
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Full Name"
+                className="w-full pl-11 pr-4 py-4 bg-white border border-gray-100 rounded-2xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#007A5A] focus:border-transparent transition-all shadow-sm"
+                required
+              />
             </div>
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Your Name"
-              className="w-full pl-11 pr-4 py-3.5 bg-white border border-gray-200 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#007A5A] focus:border-transparent transition-all"
-              required
-            />
+
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                <Mail className="h-5 w-5 text-gray-400" />
+              </div>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="Email Address"
+                className="w-full pl-11 pr-4 py-4 bg-white border border-gray-100 rounded-2xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#007A5A] focus:border-transparent transition-all shadow-sm"
+                required
+              />
+            </div>
+
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                <Lock className="h-5 w-5 text-gray-400" />
+              </div>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Password"
+                className="w-full pl-11 pr-4 py-4 bg-white border border-gray-100 rounded-2xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#007A5A] focus:border-transparent transition-all shadow-sm"
+                required
+              />
+            </div>
+
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                <Phone className="h-5 w-5 text-gray-400" />
+              </div>
+              <input
+                type="tel"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="Phone Number"
+                className="w-full pl-11 pr-4 py-4 bg-white border border-gray-100 rounded-2xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#007A5A] focus:border-transparent transition-all shadow-sm"
+                required
+              />
+            </div>
           </div>
 
-          <div className="relative">
-            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-              <Mail className="h-5 w-5 text-gray-400" />
-            </div>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="Your Email"
-              className="w-full pl-11 pr-4 py-3.5 bg-white border border-gray-200 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#007A5A] focus:border-transparent transition-all"
-              required
-            />
-          </div>
+          {/* Progressive Disclosure: Optional Info */}
+          <div className="pt-2">
+            <button 
+              type="button"
+              onClick={() => setShowOptional(!showOptional)}
+              className="flex items-center gap-2 text-sm font-medium text-[#007A5A] hover:opacity-80 transition-opacity"
+            >
+              {showOptional ? <X className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
+              {showOptional ? 'Hide optional info' : 'Add optional info'}
+            </button>
 
-          <div className="relative">
-            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-              <Lock className="h-5 w-5 text-gray-400" />
-            </div>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Password"
-              className="w-full pl-11 pr-4 py-3.5 bg-white border border-gray-200 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#007A5A] focus:border-transparent transition-all"
-              required
-            />
+            <AnimatePresence>
+              {showOptional && (
+                <motion.div 
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  className="overflow-hidden space-y-4 mt-4"
+                >
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                      <Calendar className="h-5 w-5 text-gray-400" />
+                    </div>
+                    <input
+                      type="date"
+                      value={birthday}
+                      onChange={(e) => setBirthday(e.target.value)}
+                      className="w-full pl-11 pr-4 py-4 bg-white border border-gray-100 rounded-2xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#007A5A] focus:border-transparent transition-all shadow-sm"
+                    />
+                  </div>
+
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                      <User className="h-5 w-5 text-gray-400" />
+                    </div>
+                    <select
+                      value={gender}
+                      onChange={(e) => setGender(e.target.value)}
+                      className="w-full pl-11 pr-10 py-4 bg-white border border-gray-100 rounded-2xl text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#007A5A] focus:border-transparent transition-all shadow-sm appearance-none"
+                    >
+                      <option value="">Select Gender</option>
+                      <option value="male">Male</option>
+                      <option value="female">Female</option>
+                      <option value="other">Other</option>
+                    </select>
+                    <div className="absolute inset-y-0 right-0 pr-4 flex items-center pointer-events-none">
+                      <ChevronDown className="h-5 w-5 text-gray-400" />
+                    </div>
+                  </div>
+
+                  {/* Student ID Upload */}
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-1">
+                      <span className="text-sm font-medium text-gray-700">Student ID</span>
+                      <span className="text-red-500">*</span>
+                      <div className="w-4 h-4 rounded-full border border-gray-300 flex items-center justify-center text-[10px] text-gray-400 cursor-help" title="Optional but recommended for verification">i</div>
+                    </div>
+                    
+                    <div 
+                      onClick={() => studentIdInputRef.current?.click()}
+                      className="w-full h-40 border-2 border-dashed border-gray-200 rounded-2xl flex flex-col items-center justify-center bg-white hover:bg-gray-50 transition-colors cursor-pointer overflow-hidden group"
+                    >
+                      {studentIdImage ? (
+                        <div className="relative w-full h-full">
+                          <img src={studentIdImage} alt="Student ID" className="w-full h-full object-cover" />
+                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                            <Camera className="w-8 h-8 text-white" />
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="w-12 h-12 bg-[#E6F4EA] rounded-full flex items-center justify-center mb-2">
+                            <Camera className="w-6 h-6 text-[#007A5A]" />
+                          </div>
+                          <span className="text-sm text-gray-400">Upload Image</span>
+                        </>
+                      )}
+                    </div>
+                    <input 
+                      type="file" 
+                      ref={studentIdInputRef} 
+                      onChange={handleStudentIdChange} 
+                      className="hidden" 
+                      accept="image/*"
+                    />
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
 
           <button
             type="submit"
-            disabled={isLoading}
-            className="w-full bg-[#007A5A] text-white py-3.5 rounded-xl font-bold text-base shadow-md hover:bg-[#006349] active:scale-[0.98] transition-all mt-2 flex items-center justify-center gap-2 disabled:opacity-70"
+            disabled={isLoading || !isFormValid}
+            className={`w-full py-4 rounded-2xl font-bold text-lg shadow-xl shadow-[#007A5A]/20 active:scale-[0.98] transition-all mt-6 flex items-center justify-center gap-2 disabled:opacity-50 disabled:shadow-none ${
+              isFormValid ? 'bg-[#007A5A] text-white hover:bg-[#006349]' : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+            }`}
           >
-            {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Sign Up'}
+            {isLoading ? <Loader2 className="w-6 h-6 animate-spin" /> : 'Create Account'}
           </button>
         </form>
 
-        {/* Divider */}
-        <div className="flex items-center mb-6">
-          <div className="flex-1 border-t border-gray-200"></div>
-          <span className="px-4 text-sm text-gray-400 font-medium">or</span>
-          <div className="flex-1 border-t border-gray-200"></div>
-        </div>
-
-        {/* Secondary Actions */}
-        <div className="space-y-3 mb-8">
-          <button
-            onClick={handleGoogleSignup}
-            disabled={isLoading}
-            className="w-full bg-white border border-gray-200 text-gray-700 py-3.5 rounded-xl font-semibold text-sm shadow-sm hover:bg-gray-50 active:scale-[0.98] transition-all flex items-center justify-center gap-3 disabled:opacity-50"
-          >
-            <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" className="w-5 h-5" />
-            {isLoading ? 'Signing up...' : 'Sign up with Google'}
-          </button>
-        </div>
-
         {/* Footer */}
-        <div className="mt-auto text-center pb-4">
+        <div className="text-center mt-6">
           <p className="text-sm text-gray-500">
             Already have an account?{' '}
             <button onClick={() => navigate('/login')} className="text-[#007A5A] font-bold hover:underline">
@@ -173,7 +343,36 @@ export default function SignupScreen() {
           </p>
         </div>
 
+        {/* Social Sign Up Section */}
+        <div className="mt-10">
+          <div className="flex items-center mb-6">
+            <div className="flex-1 border-t border-gray-200"></div>
+            <span className="px-4 text-sm text-gray-400 font-medium">or continue with</span>
+            <div className="flex-1 border-t border-gray-200"></div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <button
+              onClick={handleGoogleSignup}
+              disabled={isLoading}
+              className="flex items-center justify-center gap-3 bg-white border border-gray-100 py-3.5 rounded-2xl font-semibold text-sm shadow-sm hover:bg-gray-50 active:scale-[0.98] transition-all disabled:opacity-50"
+            >
+              <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" className="w-5 h-5" />
+              <span className="text-gray-700">Google</span>
+            </button>
+            <button
+              onClick={handleFacebookSignup}
+              disabled={isLoading}
+              className="flex items-center justify-center gap-3 bg-white border border-gray-100 py-3.5 rounded-2xl font-semibold text-sm shadow-sm hover:bg-gray-50 active:scale-[0.98] transition-all disabled:opacity-50"
+            >
+              <Facebook className="w-5 h-5 text-[#1877F2] fill-[#1877F2]" />
+              <span className="text-gray-700">Facebook</span>
+            </button>
+          </div>
+        </div>
+
       </div>
     </div>
   );
 }
+
