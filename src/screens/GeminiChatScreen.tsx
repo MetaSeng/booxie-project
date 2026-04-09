@@ -1,10 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { GoogleGenAI, ThinkingLevel } from '@google/genai';
+import { ThinkingLevel } from '@google/genai';
+import { getGeminiAI } from '../lib/gemini';
 import { Send, Loader2, ArrowLeft, Phone, Camera, Smile, Image as ImageIcon, Mic, Bot, BrainCircuit, ImagePlus } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
-
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 const PROMPT_CHIPS = [
   "Please recommend a book for computer science.",
@@ -48,6 +47,7 @@ export default function GeminiChatScreen() {
       setIsLoading(true);
 
       try {
+        const ai = getGeminiAI();
         const base64Data = base64.split(',')[1];
         const response = await ai.models.generateContent({
           model: 'gemini-3-flash-preview',
@@ -103,6 +103,7 @@ export default function GeminiChatScreen() {
       config.thinkingConfig = { thinkingLevel: ThinkingLevel.HIGH };
     }
 
+    const ai = getGeminiAI();
     chatRef.current = ai.chats.create({
       model: 'gemini-3-flash-preview',
       config
@@ -122,6 +123,7 @@ export default function GeminiChatScreen() {
     setIsLoading(true);
 
     try {
+      const ai = getGeminiAI();
       const response = await ai.models.generateContent({
         model: 'gemini-3-pro-image-preview',
         contents: {

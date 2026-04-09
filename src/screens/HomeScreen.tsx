@@ -5,9 +5,6 @@ import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
 import { BookOpen, Search, Heart, Star, ChevronRight, MessageCircle, Sparkles, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { GoogleGenAI } from '@google/genai';
-
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 interface BookListing {
   id: string;

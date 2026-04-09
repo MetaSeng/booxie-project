@@ -5,7 +5,7 @@ import { db, handleFirestoreError, OperationType } from '../firebase';
 import { useAuth } from '../context/AuthContext';
 import { ArrowLeft, Send, CheckCircle, MoreVertical, Phone, Video, Camera, Image as ImageIcon, Smile, Mic, Check, CheckCheck } from 'lucide-react';
 import { format } from 'date-fns';
-import { GoogleGenAI } from '@google/genai';
+import { getGeminiAI } from '../lib/gemini';
 
 export default function ChatScreen() {
   const { id } = useParams();
@@ -132,7 +132,7 @@ export default function ChatScreen() {
       setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
 
       try {
-        const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+        const ai = getGeminiAI();
         let aiContents: any = type === 'text' ? content : "User sent a media file.";
         
         if (type === 'image') {

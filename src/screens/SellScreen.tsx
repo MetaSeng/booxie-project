@@ -1,10 +1,8 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Webcam from 'react-webcam';
-import { GoogleGenAI } from '@google/genai';
+import { getGeminiAI } from '../lib/gemini';
 import { Loader2, X } from 'lucide-react';
-
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 const BankInvoiceIcon = () => (
   <svg width="24" height="32" viewBox="0 0 24 32" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="opacity-80">
@@ -56,6 +54,7 @@ export default function SellScreen() {
     
     try {
       if (activeTab === 'Front Cover') {
+        const ai = getGeminiAI();
         const response = await ai.models.generateContent({
           model: 'gemini-3-flash-preview',
           contents: {
@@ -78,6 +77,7 @@ export default function SellScreen() {
            setError('No book cover detected. Please try again.');
         }
       } else if (activeTab === 'Back Cover') {
+        const ai = getGeminiAI();
         const response = await ai.models.generateContent({
           model: 'gemini-3-flash-preview',
           contents: {
