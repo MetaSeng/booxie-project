@@ -7,6 +7,7 @@ import { ArrowLeft, Send, CheckCircle, MoreVertical, Phone, Video, Camera, Image
 import { format } from 'date-fns';
 import { getGeminiAI } from '../lib/gemini';
 import { ThinkingLevel } from '@google/genai';
+import { isGeminiQuotaError, GEMINI_QUOTA_ERROR_MESSAGE } from '../lib/geminiErrors';
 
 export default function ChatScreen() {
   const { id } = useParams();
@@ -176,22 +177,10 @@ export default function ChatScreen() {
         setMessages(prev => [...prev, newAiMsg]);
       } catch (error: any) {
         console.error("AI Error:", error);
-        let errorText = "Sorry, I'm having trouble connecting right now.";
-        
-        const isQuotaError = 
-          error?.status === 429 || 
-          error?.status === 'RESOURCE_EXHAUSTED' ||
-          error?.message?.includes('429') || 
-          error?.message?.includes('quota') || 
-          error?.message?.includes('RESOURCE_EXHAUSTED') ||
-          error?.error?.code === 429 ||
-          error?.error?.status === 'RESOURCE_EXHAUSTED' ||
-          JSON.stringify(error).includes('429') ||
-          JSON.stringify(error).includes('RESOURCE_EXHAUSTED');
+        const errorText = isGeminiQuotaError(error) 
+          ? GEMINI_QUOTA_ERROR_MESSAGE
+          : "Sorry, I'm having trouble connecting right now.";
 
-        if (isQuotaError) {
-          errorText = "I'm currently experiencing high traffic and my quota is exceeded. Please try again later.";
-        }
         const errorMsg = {
           id: (Date.now() + 1).toString(),
           senderId: 'ai',

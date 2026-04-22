@@ -4,6 +4,7 @@ import { getGeminiAI } from '../lib/gemini';
 import { Send, Loader2, ArrowLeft, Phone, Camera, Smile, Image as ImageIcon, Mic, Bot, BrainCircuit, ImagePlus } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
+import { isGeminiQuotaError, GEMINI_QUOTA_ERROR_MESSAGE } from '../lib/geminiErrors';
 
 const PROMPT_CHIPS = [
   "Please recommend a book for computer science.",
@@ -67,9 +68,13 @@ export default function GeminiChatScreen() {
         });
 
         setMessages(prev => [...prev, { role: 'model', text: response.text || "I couldn't analyze the image." }]);
-      } catch (error) {
+      } catch (error: any) {
         console.error("Gemini API Error:", error);
-        setMessages(prev => [...prev, { role: 'model', text: "Sorry, I encountered an error analyzing the image." }]);
+        const errorText = isGeminiQuotaError(error) 
+          ? GEMINI_QUOTA_ERROR_MESSAGE
+          : "Sorry, I encountered an error analyzing the image.";
+
+        setMessages(prev => [...prev, { role: 'model', text: errorText }]);
       } finally {
         setIsLoading(false);
       }
@@ -160,9 +165,13 @@ export default function GeminiChatScreen() {
       } else {
         setMessages(prev => [...prev, { role: 'model', text: "Sorry, I couldn't generate the image." }]);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Image Generation Error:", error);
-      setMessages(prev => [...prev, { role: 'model', text: "Sorry, I encountered an error generating the image." }]);
+      const errorText = isGeminiQuotaError(error) 
+        ? GEMINI_QUOTA_ERROR_MESSAGE
+        : "Sorry, I encountered an error generating the image.";
+
+      setMessages(prev => [...prev, { role: 'model', text: errorText }]);
     } finally {
       setIsLoading(false);
     }
@@ -207,22 +216,9 @@ export default function GeminiChatScreen() {
       }
     } catch (error: any) {
       console.error(error);
-      let errorText = 'An error occurred. Please try again.';
-      
-      const isQuotaError = 
-        error?.status === 429 || 
-        error?.status === 'RESOURCE_EXHAUSTED' ||
-        error?.message?.includes('429') || 
-        error?.message?.includes('quota') || 
-        error?.message?.includes('RESOURCE_EXHAUSTED') ||
-        error?.error?.code === 429 ||
-        error?.error?.status === 'RESOURCE_EXHAUSTED' ||
-        JSON.stringify(error).includes('429') ||
-        JSON.stringify(error).includes('RESOURCE_EXHAUSTED');
-
-      if (isQuotaError) {
-        errorText = "I'm currently experiencing high traffic and my quota is exceeded. Please try again later.";
-      }
+      const errorText = isGeminiQuotaError(error) 
+        ? GEMINI_QUOTA_ERROR_MESSAGE
+        : 'An error occurred. Please try again.';
       
       setMessages(prev => {
         const newMessages = [...prev];
@@ -323,9 +319,9 @@ export default function GeminiChatScreen() {
       </div>
 
       {/* Input Area */}
-      <div className="bg-white px-3 py-3 pb-safe border-t border-gray-100 relative w-full">
+      <div className="bg-white px-2 py-3 pb-safe border-t border-gray-100 relative w-full">
         {showEmojiPicker && (
-          <div className="absolute bottom-full left-4 mb-2 bg-white border border-gray-200 rounded-2xl shadow-lg p-2 flex flex-wrap gap-2 max-w-[calc(100%-2rem)] z-50">
+          <div className="absolute bottom-full left-2 mb-2 bg-white border border-gray-200 rounded-2xl shadow-lg p-2 flex flex-wrap gap-1.5 max-w-[calc(100%-1rem)] z-50">
             {emojis.map(emoji => (
               <button
                 key={emoji}
@@ -333,7 +329,7 @@ export default function GeminiChatScreen() {
                   setInput(prev => prev + emoji);
                   setShowEmojiPicker(false);
                 }}
-                className="text-xl hover:bg-gray-100 p-1.5 rounded-lg transition-colors"
+                className="text-lg hover:bg-gray-100 p-1.5 rounded-lg transition-colors"
                 type="button"
               >
                 {emoji}
@@ -343,7 +339,7 @@ export default function GeminiChatScreen() {
         )}
 
         {showImageOptions && (
-          <div className="absolute bottom-full right-4 mb-2 bg-white border border-gray-200 rounded-2xl shadow-lg p-3 flex flex-col gap-2 w-64 max-w-[calc(100%-2rem)] z-50">
+          <div className="absolute bottom-full right-2 mb-2 bg-white border border-gray-200 rounded-2xl shadow-lg p-3 flex flex-col gap-2 w-64 max-w-[calc(100%-1rem)] z-50">
             <h3 className="text-xs font-bold text-gray-700 mb-1">Generate Image</h3>
             <div className="flex gap-2 mb-2">
               {(['1K', '2K', '4K'] as const).map(size => (
@@ -384,20 +380,20 @@ export default function GeminiChatScreen() {
           onChange={handleImageUpload} 
         />
 
-        <form onSubmit={handleSend} className="flex items-center gap-2 w-full">
+        <form onSubmit={handleSend} className="flex items-center gap-1.5 w-full">
           <button 
             type="button" 
             onClick={() => cameraInputRef.current?.click()}
-            className="w-9 h-9 bg-[#006A4E] rounded-full flex items-center justify-center text-white flex-shrink-0 shadow-sm"
+            className="w-8 h-8 bg-[#006A4E] rounded-full flex items-center justify-center text-white flex-shrink-0 shadow-sm"
           >
-            <Camera className="w-4.5 h-4.5" />
+            <Camera className="w-4 h-4" />
           </button>
           
-          <div className="flex-1 flex items-center bg-gray-50 rounded-full px-3 py-2 min-w-0 overflow-hidden">
+          <div className="flex-1 flex items-center bg-gray-50 rounded-full px-2.5 py-1.5 min-w-0 overflow-hidden">
             {isRecording ? (
               <div className="flex-1 flex items-center min-w-0">
                 <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse mr-2 flex-shrink-0"></div>
-                <span className="text-sm text-red-500 font-medium truncate">{formatTime(recordingTime)}</span>
+                <span className="text-xs text-red-500 font-medium truncate">{formatTime(recordingTime)}</span>
               </div>
             ) : (
               <input
@@ -409,34 +405,34 @@ export default function GeminiChatScreen() {
               />
             )}
             
-            <div className="flex items-center gap-2 text-gray-900 ml-1 flex-shrink-0">
+            <div className="flex items-center gap-1 text-gray-900 ml-1 flex-shrink-0">
               <button 
                 type="button" 
                 onClick={() => setShowImageOptions(!showImageOptions)}
                 className="hover:text-[#006A4E] transition-colors relative p-1"
               >
-                <ImagePlus className="w-4.5 h-4.5" />
+                <ImagePlus className="w-4 h-4" />
               </button>
               <button 
                 type="button" 
                 onClick={() => setShowEmojiPicker(!showEmojiPicker)}
                 className="hover:text-[#006A4E] transition-colors p-1"
               >
-                <Smile className="w-4.5 h-4.5" />
+                <Smile className="w-4 h-4" />
               </button>
               <button 
                 type="button" 
                 onClick={() => fileInputRef.current?.click()}
                 className="hover:text-[#006A4E] transition-colors p-1"
               >
-                <ImageIcon className="w-4.5 h-4.5" />
+                <ImageIcon className="w-4 h-4" />
               </button>
               <button 
                 type="button" 
                 onClick={handleMicClick}
                 className={`transition-colors p-1 ${isRecording ? 'text-red-500' : 'hover:text-[#006A4E]'}`}
               >
-                <Mic className="w-4.5 h-4.5" />
+                <Mic className="w-4 h-4" />
               </button>
             </div>
           </div>
@@ -445,9 +441,9 @@ export default function GeminiChatScreen() {
             <button 
               type="submit"
               disabled={isLoading}
-              className="w-9 h-9 bg-[#006A4E] rounded-full flex items-center justify-center text-white flex-shrink-0 disabled:opacity-50 shadow-sm"
+              className="w-8 h-8 bg-[#006A4E] rounded-full flex items-center justify-center text-white flex-shrink-0 disabled:opacity-50 shadow-sm"
             >
-              <Send className="w-4 h-4 ml-0.5" />
+              <Send className="w-3.5 h-3.5 ml-0.5" />
             </button>
           )}
         </form>

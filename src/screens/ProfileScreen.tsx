@@ -90,30 +90,33 @@ export default function ProfileScreen() {
                   <p className="text-[10px] text-gray-500">Use for discount when purchasing</p>
                 </div>
               </div>
-              <span className="text-[10px] text-gray-500 whitespace-nowrap ml-2">1250 Points</span>
+              <span className="text-[10px] text-gray-500 whitespace-nowrap ml-2">{profile?.rewardPoints || 0} Points</span>
             </div>
 
             <div className="mb-4">
               <div className="flex justify-between text-[10px] text-gray-900 mb-1">
-                <span>Gold level</span>
-                <span>1250/2000</span>
+                <span>{profile?.rewardPoints >= 1500 ? 'Platinum level' : profile?.rewardPoints >= 1000 ? 'Gold level' : 'Silver level'}</span>
+                <span>{profile?.rewardPoints || 0}/2000</span>
               </div>
               <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                <div className="h-full bg-[#006A4E] w-[62.5%] rounded-full"></div>
+                <div 
+                  className="h-full bg-[#006A4E] transition-all duration-500 rounded-full" 
+                  style={{ width: `${Math.min(((profile?.rewardPoints || 0) / 2000) * 100, 100)}%` }}
+                ></div>
               </div>
             </div>
 
             <div className="flex justify-between pt-2">
               <div className="text-center flex-1">
-                <p className="font-bold text-gray-900 text-sm">2</p>
+                <p className="font-bold text-gray-900 text-sm">{profile?.purchasedCount || 0}</p>
                 <p className="text-[10px] text-gray-900">Purchased</p>
               </div>
               <div className="text-center flex-1">
-                <p className="font-bold text-gray-900 text-sm">2</p>
+                <p className="font-bold text-gray-900 text-sm">{profile?.soldCount || 0}</p>
                 <p className="text-[10px] text-gray-900">Sold</p>
               </div>
               <div className="text-center flex-1">
-                <p className="font-bold text-gray-900 text-sm">12</p>
+                <p className="font-bold text-gray-900 text-sm">{profile?.donatedCount || 0}</p>
                 <p className="text-[10px] text-gray-900">Donate</p>
               </div>
             </div>
@@ -218,7 +221,7 @@ export default function ProfileScreen() {
       </div>
 
       {/* Floating Chat Button */}
-      <div className="fixed bottom-28 left-0 right-0 max-w-md mx-auto pointer-events-none z-30">
+      <div className="fixed bottom-28 left-0 right-0 md:max-w-md md:mx-auto pointer-events-none z-30 w-full">
         <button 
           onClick={() => navigate('/gemini')}
           className="absolute right-4 w-14 h-14 bg-[#006A4E] rounded-full shadow-lg flex items-center justify-center text-white hover:bg-[#005C44] transition-colors pointer-events-auto"

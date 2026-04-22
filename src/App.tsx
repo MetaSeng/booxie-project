@@ -27,6 +27,7 @@ import ReceiptScreen from './screens/ReceiptScreen';
 import ProfileScreen from './screens/ProfileScreen';
 import BookDetailsSellScreen from './screens/BookDetailsSellScreen';
 import ScanEditScreen from './screens/ScanEditScreen';
+import DonationScreen from './screens/DonationScreen';
 import PlaceholderScreen from './screens/PlaceholderScreen';
 
 // Admin Screens
@@ -129,7 +130,7 @@ export default function App() {
                 <Route path="edit-profile" element={<ProtectedRoute><PlaceholderScreen title="Edit Profile" /></ProtectedRoute>} />
                 <Route path="membership" element={<ProtectedRoute><PlaceholderScreen title="Membership" /></ProtectedRoute>} />
                 <Route path="orders" element={<ProtectedRoute><PlaceholderScreen title="My Orders" /></ProtectedRoute>} />
-                <Route path="donations" element={<ProtectedRoute><PlaceholderScreen title="Donations" /></ProtectedRoute>} />
+                <Route path="donations" element={<DonationScreen />} />
                 <Route path="favorites" element={<ProtectedRoute><PlaceholderScreen title="Favorites" /></ProtectedRoute>} />
                 <Route path="order/:id" element={<ProtectedRoute><PlaceholderScreen title="Order Details" /></ProtectedRoute>} />
                 <Route path="leaderboard" element={<ProtectedRoute><PlaceholderScreen title="Leaderboard" /></ProtectedRoute>} />

@@ -24,10 +24,10 @@ export default function Layout() {
   const isGeminiChat = location.pathname === '/gemini';
 
   return (
-    <div className="min-h-screen bg-[#F8FCF9] flex flex-col max-w-md mx-auto shadow-2xl relative overflow-hidden font-sans">
+    <div className="h-full h-dvh bg-[#F8FCF9] flex flex-col md:max-w-md md:mx-auto md:shadow-2xl relative overflow-hidden font-sans w-full">
       {/* Header */}
       {shouldShowHeader && (
-        <header className="bg-[#F8FCF9] px-4 py-3 flex items-center justify-between z-50 relative">
+        <header className="bg-[#F8FCF9] px-4 py-3 flex items-center justify-between z-50 relative shrink-0">
           <div className="flex items-center gap-2">
             <div className="w-10 h-10 flex items-center justify-center overflow-hidden">
               <BooxieLogo className="w-10 h-10" />
@@ -42,18 +42,18 @@ export default function Layout() {
             {user && (
               <div 
                 onClick={() => navigate('/profile')}
-                className="flex items-center gap-1 bg-[#FFF8E7] px-2 py-1 rounded-full cursor-pointer hover:bg-[#FFE8B3] transition-colors"
+                className="flex items-center gap-1 bg-[#FFF8E7] px-2 py-1 rounded-full cursor-pointer hover:bg-[#FFE8B3] transition-colors shrink-0"
               >
                 <Star className="w-3 h-3 text-[#FFB800] fill-[#FFB800]" />
-                <span className="text-xs font-bold text-[#FFB800]">{profile?.rewardPoints || 0} points</span>
+                <span className="text-xs font-bold text-[#FFB800]">{profile?.rewardPoints || 0} pts</span>
               </div>
             )}
             
-            <div className="flex items-center gap-2 text-gray-700 relative">
+            <div className="flex items-center gap-1.5 text-gray-700 relative">
               {user && (
                 <>
                   <button 
-                    className="relative p-1 hover:bg-gray-100 rounded-full transition-colors"
+                    className="relative p-1 hover:bg-gray-100 rounded-full transition-colors shrink-0"
                     onClick={() => setShowNotifications(!showNotifications)}
                   >
                     <Bell className="w-5 h-5" />
@@ -82,18 +82,15 @@ export default function Layout() {
                     </div>
                   )}
 
-                  <button className="relative p-1 hover:bg-gray-100 rounded-full transition-colors" onClick={() => navigate('/chat')}>
+                  <button className="relative p-1 hover:bg-gray-100 rounded-full transition-colors shrink-0" onClick={() => navigate('/chat')}>
                     <MessageCircle className="w-5 h-5" />
                     <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full border border-white"></span>
-                  </button>
-                  <button className="p-1 hover:bg-gray-100 rounded-full transition-colors" onClick={() => navigate('/rewards')}>
-                    <Gift className="w-5 h-5" />
                   </button>
                 </>
               )}
               
               <button 
-                className="w-5 h-5 rounded-full overflow-hidden border border-gray-200 flex items-center justify-center bg-white hover:bg-gray-50 transition-colors"
+                className="w-5 h-5 rounded-full overflow-hidden border border-gray-200 flex items-center justify-center bg-white hover:bg-gray-50 transition-colors shrink-0"
                 onClick={toggleLanguage}
                 title={`Switch to ${language === 'EN' ? 'Khmer' : 'English'}`}
               >
@@ -107,7 +104,7 @@ export default function Layout() {
               {!user && (
                 <button 
                   onClick={() => navigate('/login')}
-                  className="text-xs font-bold text-[#006A4E] px-3 py-1.5 border border-[#006A4E] rounded-full hover:bg-[#E8F5F0] transition-colors"
+                  className="text-xs font-bold text-[#006A4E] px-2 py-1.5 border border-[#006A4E] rounded-full hover:bg-[#E8F5F0] transition-colors whitespace-nowrap"
                 >
                   Log In
                 </button>
@@ -118,13 +115,13 @@ export default function Layout() {
       )}
 
       {/* Main Content Area */}
-      <main className={`flex-1 relative ${isGeminiChat ? 'overflow-hidden flex flex-col' : 'overflow-y-auto'} ${shouldShowBottomNav ? 'pb-20' : ''}`}>
+      <main className={`flex-1 relative ${isGeminiChat ? 'overflow-hidden flex flex-col' : 'overflow-y-auto overflow-x-hidden'} ${shouldShowBottomNav ? 'pb-20' : ''}`}>
         <Outlet />
       </main>
 
       {/* Bottom Navigation */}
       {shouldShowBottomNav && (
-        <nav className="absolute bottom-0 left-0 right-0 bg-white border-t border-gray-100 px-6 py-3 flex justify-between items-center z-20 pb-safe">
+        <nav className="absolute bottom-0 left-0 right-0 bg-white border-t border-gray-100 px-4 py-3 flex justify-between items-center z-20 pb-safe md:max-w-md md:mx-auto">
           <NavItem to="/" icon={<Home className="w-6 h-6" />} label="Home" />
           <NavItem to="/search" icon={<Search className="w-6 h-6" />} label="Search" />
           <NavItem to="/sell" icon={<div className="w-6 h-6 rounded-full border-2 border-current flex items-center justify-center"><Plus className="w-4 h-4" /></div>} label="Sell" />

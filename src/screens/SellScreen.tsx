@@ -2,8 +2,8 @@ import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Webcam from 'react-webcam';
 import { getGeminiAI } from '../lib/gemini';
-import { ThinkingLevel } from '@google/genai';
 import { Loader2, X } from 'lucide-react';
+import { isGeminiQuotaError } from '../lib/geminiErrors';
 
 const BankInvoiceIcon = () => (
   <svg width="24" height="32" viewBox="0 0 24 32" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="opacity-80">
@@ -36,7 +36,18 @@ export default function SellScreen() {
   const [isScanning, setIsScanning] = useState(false);
   const [error, setError] = useState('');
   const [activeTab, setActiveTab] = useState('Front Cover');
+  const [listingType, setListingType] = useState<'sale' | 'donation'>('sale');
   const [frontCoverData, setFrontCoverData] = useState<any>(null);
+
+  useEffect(() => {
+    if (frontCoverData) {
+      setFrontCoverData((prev: any) => ({
+        ...prev,
+        type: listingType,
+        price: listingType === 'donation' ? 0 : (prev.price === 0 ? 5.00 : prev.price)
+      }));
+    }
+  }, [listingType]);
   const [frontCoverImage, setFrontCoverImage] = useState<string | null>(null);
   const [backCoverImage, setBackCoverImage] = useState<string | null>(null);
   const [autoScanEnabled, setAutoScanEnabled] = useState(true);
@@ -70,28 +81,35 @@ export default function SellScreen() {
           return;
         }
         const response = await ai.models.generateContent({
-          model: 'gemini-3.1-pro-preview',
+          model: 'gemini-3.1-flash-lite-preview',
           contents: {
             parts: [
-              { text: 'Analyze this image. If there is a clear book cover, extract the book title and author. Then provide a brief description. Since this is a secondhand book, recommend a lower price between 3 and 9 USD. Return ONLY a valid JSON object with keys: "detected" (boolean), "title" (string), "author" (string), "description" (string), and "price" (number). If no clear book cover is found, return {"detected": false}. Do not include markdown formatting.' },
+              { text: 'Analyze this image. If there is a clear book cover, extract the book title and author. Then provide a brief description. Since this is a secondhand book, recommend a lower price between 3 and 9 USD. Return ONLY a valid JSON object with keys: "detected" (boolean), "title" (string), "author" (string), "description" (string), and "price" (number). If no clear book cover is found, return {"detected": false}. Do not include markdown formatting or any text outside the JSON.' },
               { inlineData: { data: base64String, mimeType: 'image/jpeg' } }
             ]
-          },
-          config: {
-            thinkingConfig: { thinkingLevel: ThinkingLevel.HIGH }
           }
         });
 
         let text = response.text || '{}';
         text = text.replace(/```json/gi, '').replace(/```/g, '').trim();
-        const data = JSON.parse(text);
         
-        if (data.detected || isManual) {
-          setFrontCoverData(data);
-          setFrontCoverImage(imageSrc);
-          setActiveTab('Back Cover');
-        } else if (isManual) {
-           setError('No book cover detected. Please try again.');
+        try {
+          const data = JSON.parse(text);
+          if (data.detected || isManual) {
+            const finalData = {
+              ...data,
+              type: listingType,
+              price: listingType === 'donation' ? 0 : data.price
+            };
+            setFrontCoverData(finalData);
+            setFrontCoverImage(imageSrc);
+            setActiveTab('Back Cover');
+          } else if (isManual) {
+             setError('No book cover detected. Please try again.');
+          }
+        } catch (parseError) {
+          console.error("JSON Parse Error:", text);
+          if (isManual) setError('Failed to understand the scan. Please try again.');
         }
       } else if (activeTab === 'Back Cover') {
         const ai = getGeminiAI();
@@ -107,50 +125,41 @@ export default function SellScreen() {
           return;
         }
         const response = await ai.models.generateContent({
-          model: 'gemini-3.1-pro-preview',
+          model: 'gemini-3.1-flash-lite-preview',
           contents: {
             parts: [
-              { text: 'Analyze this image. If it is a back cover of a book (often containing a barcode, blurb, or ISBN), return ONLY a valid JSON object with {"detected": true}. Otherwise return {"detected": false}. Do not include markdown formatting.' },
+              { text: 'Analyze this image. If it is a back cover of a book (often containing a barcode, blurb, or ISBN), return ONLY a valid JSON object with {"detected": true}. Otherwise return {"detected": false}. Do not include markdown formatting or any text outside the JSON.' },
               { inlineData: { data: base64String, mimeType: 'image/jpeg' } }
             ]
-          },
-          config: {
-            thinkingConfig: { thinkingLevel: ThinkingLevel.HIGH }
           }
         });
 
         let text = response.text || '{}';
         text = text.replace(/```json/gi, '').replace(/```/g, '').trim();
-        const data = JSON.parse(text);
         
-        if (data.detected || isManual) {
-          setBackCoverImage(imageSrc);
-          setAutoScanEnabled(false);
-          
-          navigate('/sell/edit', { 
-            state: { 
-              images: [frontCoverImage, imageSrc].filter(Boolean),
-              frontCoverData 
-            } 
-          });
-        } else if (isManual) {
-           setError('No back cover detected. Please try again.');
+        try {
+          const data = JSON.parse(text);
+          if (data.detected || isManual) {
+            setBackCoverImage(imageSrc);
+            setAutoScanEnabled(false);
+            
+            navigate('/sell/edit', { 
+              state: { 
+                images: [frontCoverImage, imageSrc].filter(Boolean),
+                frontCoverData 
+              } 
+            });
+          } else if (isManual) {
+             setError('No back cover detected. Please try again.');
+          }
+        } catch (parseError) {
+          console.error("JSON Parse Error:", text);
+          if (isManual) setError('Failed to understand the scan. Please try again.');
         }
       }
     } catch (err: any) {
       console.error(err);
-      const isQuotaError = 
-        err?.status === 429 || 
-        err?.status === 'RESOURCE_EXHAUSTED' ||
-        err?.message?.includes('429') || 
-        err?.message?.includes('quota') || 
-        err?.message?.includes('RESOURCE_EXHAUSTED') ||
-        err?.error?.code === 429 ||
-        err?.error?.status === 'RESOURCE_EXHAUSTED' ||
-        JSON.stringify(err).includes('429') ||
-        JSON.stringify(err).includes('RESOURCE_EXHAUSTED');
-
-      if (isQuotaError) {
+      if (isGeminiQuotaError(err)) {
         setAutoScanEnabled(false);
         if (isManual) {
           // Fallback for manual capture when quota is exceeded
@@ -199,8 +208,8 @@ export default function SellScreen() {
       await captureAndAnalyze();
       
       if (isMounted) {
-        // Increase interval to 5 seconds to avoid quota issues
-        timeoutId = setTimeout(runAutoScan, 5000);
+        // Increase interval to 10 seconds to avoid quota issues
+        timeoutId = setTimeout(runAutoScan, 10000);
       }
     };
 
@@ -224,7 +233,28 @@ export default function SellScreen() {
     <div className="fixed inset-0 bg-[#1A8765] z-50 flex flex-col font-sans overflow-hidden">
       {/* Header */}
       <div className="pt-12 pb-4 px-6 flex justify-between items-center z-10">
-        <div className="w-16"></div> {/* Spacer */}
+        <div className="flex bg-white/10 backdrop-blur-md rounded-lg p-1">
+          <button 
+            onClick={() => setListingType('sale')}
+            className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all ${
+              listingType === 'sale' 
+                ? 'bg-white text-[#1A8765] shadow-sm' 
+                : 'text-white hover:bg-white/10'
+            }`}
+          >
+            SELL
+          </button>
+          <button 
+            onClick={() => setListingType('donation')}
+            className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all ${
+              listingType === 'donation' 
+                ? 'bg-white text-[#1A8765] shadow-sm' 
+                : 'text-white hover:bg-white/10'
+            }`}
+          >
+            DONATE
+          </button>
+        </div>
         <button 
           onClick={handleDone}
           className="px-4 py-1.5 border border-white/50 rounded-lg text-white text-sm font-medium hover:bg-white/10 transition-colors"
@@ -292,7 +322,7 @@ export default function SellScreen() {
         <div className="absolute top-10 left-1/2 -translate-x-1/2 w-[150%] h-[200px] rounded-[50%] border-t border-white/10 pointer-events-none"></div>
         
         {/* Scan Options */}
-        <div className="flex gap-2 pb-8 justify-center relative z-10 h-32 items-end">
+        <div className="flex gap-1.5 pb-8 justify-center relative z-10 h-32 items-end">
           {['Bank Invoice', 'Front Cover', 'Back Cover'].map((tab, index) => {
             // Calculate rotation for arc effect
             const rotation = index === 0 ? '-rotate-12 translate-y-2' : index === 2 ? 'rotate-12 translate-y-2' : '-translate-y-2';
@@ -301,7 +331,7 @@ export default function SellScreen() {
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
-                className={`relative shrink-0 w-[100px] h-[110px] transition-all flex flex-col items-center justify-center gap-2 transform ${rotation} ${
+                className={`relative shrink-0 w-[90px] h-[100px] transition-all flex flex-col items-center justify-center gap-1.5 transform ${rotation} ${
                   activeTab === tab 
                     ? 'text-white scale-105 z-20' 
                     : 'text-white/70 hover:text-white z-10'
@@ -313,11 +343,11 @@ export default function SellScreen() {
                 }`} style={{ transform: 'perspective(100px) rotateX(-5deg)', transformOrigin: 'bottom' }}></div>
                 
                 {/* Content */}
-                <div className="relative z-10 flex flex-col items-center gap-2">
+                <div className="relative z-10 flex flex-col items-center gap-1.5">
                   {tab === 'Bank Invoice' && <BankInvoiceIcon />}
                   {tab === 'Front Cover' && <FrontCoverIcon />}
                   {tab === 'Back Cover' && <BackCoverIcon />}
-                  <span className="text-[10px] font-medium whitespace-nowrap">{tab}</span>
+                  <span className="text-[9px] font-medium whitespace-nowrap">{tab}</span>
                 </div>
               </button>
             );

@@ -91,11 +91,42 @@ export default function SearchScreen() {
   };
 
   const filterOptions = {
-    Category: ['Textbooks', 'Grade 12', 'Grade 9', 'Exam Paper', 'Science', 'Social Study', 'English', 'Novels'],
+    Category: ['Donation', 'Textbooks', 'Grade 12', 'Grade 9', 'Exam Paper', 'Science', 'Social Study', 'English', 'Novels'],
     Grade: ['Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Grade 7', 'Grade 8', 'Grade 9', 'Grade 10', 'Grade 11', 'Grade 12', 'University'],
     Condition: ['Like new', 'Good', 'Normal'],
     Price: ['0.5-5$', '6-10$', '10$<'],
     Set: ['Set', 'Single']
+  };
+
+  const handleFilterSelect = async (filter: string, option: string) => {
+    setActiveDropdown(null);
+    setIsSearching(true);
+    
+    try {
+      let q = query(collection(db, 'books'), where('status', '==', 'available'));
+      
+      if (filter === 'Condition') {
+        q = query(q, where('condition', '==', option.toLowerCase().replace(' ', '-')));
+      } else if (filter === 'Category') {
+        if (option === 'Donation') {
+          q = query(q, where('type', '==', 'donation'));
+        } else {
+          q = query(q, where('category', '==', option));
+        }
+      }
+      
+      const querySnapshot = await getDocs(q);
+      const booksData = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as BookListing[];
+      
+      setResults(booksData);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.LIST, 'books');
+    } finally {
+      setIsSearching(false);
+    }
   };
 
   return (
@@ -161,7 +192,7 @@ export default function SearchScreen() {
                   {filterOptions[filter as keyof typeof filterOptions].map((option) => (
                     <button
                       key={option}
-                      onClick={() => setActiveDropdown(null)}
+                      onClick={() => handleFilterSelect(filter, option)}
                       className="w-full text-left px-4 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors"
                     >
                       {option}

@@ -208,17 +208,17 @@ export default function BookDetailScreen() {
             </div>
 
             {/* Action Buttons */}
-            <div className="flex gap-2 mt-8">
+            <div className="flex flex-wrap gap-2 mt-8">
               <button 
                 onClick={handleAddToCart}
-                className="flex-1 bg-gray-100 text-gray-900 rounded-full font-bold text-sm py-3.5 flex items-center justify-center hover:bg-gray-200 transition-colors"
+                className="flex-1 min-w-[120px] bg-gray-100 text-gray-900 rounded-full font-bold text-sm py-3.5 flex items-center justify-center hover:bg-gray-200 transition-colors"
               >
                 Add to cart
               </button>
 
               <button 
                 onClick={handleContactSeller}
-                className="flex-1 bg-blue-50 text-blue-600 border border-blue-200 rounded-full font-bold text-sm py-3.5 flex items-center justify-center gap-1.5 hover:bg-blue-100 transition-colors"
+                className="flex-1 min-w-[120px] bg-blue-50 text-blue-600 border border-blue-200 rounded-full font-bold text-sm py-3.5 flex items-center justify-center gap-1.5 hover:bg-blue-100 transition-colors"
               >
                 <MessageCircle className="w-4 h-4" />
                 Chat
@@ -226,7 +226,7 @@ export default function BookDetailScreen() {
 
               <button 
                 onClick={() => navigate('/checkout', { state: { book } })}
-                className="flex-1 bg-[#006A4E] text-white rounded-full font-bold text-sm py-3.5 shadow-lg shadow-[#006A4E]/20 hover:bg-[#005A42] transition-colors"
+                className="w-full bg-[#006A4E] text-white rounded-full font-bold text-sm py-3.5 shadow-lg shadow-[#006A4E]/20 hover:bg-[#005A42] transition-colors"
               >
                 {book.type === 'donation' ? 'Request' : 'Buy now'}
               </button>

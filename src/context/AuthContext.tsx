@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User, onAuthStateChanged } from 'firebase/auth';
-import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, setDoc, serverTimestamp, onSnapshot } from 'firebase/firestore';
 import { auth, db, handleFirestoreError, OperationType } from '../firebase';
 
 interface AuthContextType {
@@ -17,39 +17,63 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+    let unsubscribeProfile: (() => void) | null = null;
+
+    const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
+        setUser(firebaseUser);
+        const userRef = doc(db, 'users', firebaseUser.uid);
+        
+        // Initial setup for document if it doesn't exist
         try {
-          const userRef = doc(db, 'users', firebaseUser.uid);
-          let userSnap = await getDoc(userRef);
-          
-          if (!userSnap.exists()) {
-            const newProfile = {
+          const userSnap = await getDoc(userRef);
+          if (!userSnap.exists() && !firebaseUser.isAnonymous) {
+            await setDoc(userRef, {
               uid: firebaseUser.uid,
-              name: firebaseUser.displayName || 'Guest User',
+              name: firebaseUser.displayName || 'User',
               email: firebaseUser.email || '',
               photoURL: firebaseUser.photoURL || '',
               role: 'user',
               rewardPoints: 0,
-              createdAt: serverTimestamp()
-            };
-            await setDoc(userRef, newProfile);
-            setProfile(newProfile);
-          } else {
-            setProfile(userSnap.data());
+              createdAt: serverTimestamp(),
+              updatedAt: serverTimestamp()
+            });
           }
         } catch (error) {
           console.warn("AuthContext: Error checking/creating user doc", error);
         }
-        setUser(firebaseUser);
+
+        // Real-time listener for profile
+        unsubscribeProfile = onSnapshot(userRef, (snapshot) => {
+          if (snapshot.exists()) {
+            setProfile(snapshot.data());
+          } else if (firebaseUser.isAnonymous) {
+            // Virtual profile for anonymous users
+            setProfile({
+              uid: firebaseUser.uid,
+              name: 'Guest User',
+              role: 'guest',
+              rewardPoints: 0,
+              isAnonymous: true
+            });
+          }
+          setLoading(false);
+        }, (error) => {
+          console.error("AuthContext: Profile listener error", error);
+          setLoading(false);
+        });
       } else {
+        if (unsubscribeProfile) unsubscribeProfile();
         setUser(null);
         setProfile(null);
+        setLoading(false);
       }
-      setLoading(false);
     });
 
-    return () => unsubscribe();
+    return () => {
+      unsubscribeAuth();
+      if (unsubscribeProfile) unsubscribeProfile();
+    };
   }, []);
 
   return (

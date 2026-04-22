@@ -25,6 +25,7 @@ const CATEGORIES = [
   { id: 'diploma', label: 'Diploma 9', icon: 'https://lh3.googleusercontent.com/d/18Aj2zUXaHnZeWcZomnLlWqSo_wq3GslT' },
   { id: 'exam', label: 'Exam subjects', icon: 'https://lh3.googleusercontent.com/d/1J4KjM6YwRr0RDuazZ6Qyirp37ZQ9hVIl' },
   { id: 'fiction', label: 'Fiction Book', icon: 'https://lh3.googleusercontent.com/d/1bPAh10cr4W4jNkilGR_yKNCnFuifT_4B' },
+  { id: 'donation', label: 'Donation', icon: 'https://cdn-icons-png.flaticon.com/512/4213/4213625.png' },
 ];
 
 export default function HomeScreen() {
@@ -113,15 +114,15 @@ export default function HomeScreen() {
 
       {/* Search Bar */}
       <div className="relative mb-8">
-        <div className="flex items-center border border-[#006A4E] rounded-full bg-white overflow-hidden p-1 pl-4">
-          <Search className="w-5 h-5 text-gray-400" />
+        <div className="flex items-center border border-[#006A4E] rounded-full bg-white overflow-hidden p-1 pl-4 shadow-sm">
+          <Search className="w-5 h-5 text-gray-400 shrink-0" />
           <input 
             type="text" 
-            placeholder="Search for textbooks, subjects, or grade levels..." 
-            className="flex-1 bg-transparent border-none outline-none px-3 text-sm text-gray-700 placeholder-gray-400"
+            placeholder="Search for textbooks..." 
+            className="flex-1 bg-transparent border-none outline-none px-2 text-sm text-gray-700 placeholder-gray-400 min-w-0"
             onClick={() => navigate('/search')}
           />
-          <button className="bg-[#006A4E] text-white px-6 py-2 rounded-full text-sm font-medium hover:bg-[#005C44] transition-colors">
+          <button className="bg-[#006A4E] text-white px-4 py-2 rounded-full text-sm font-medium hover:bg-[#005C44] transition-colors shrink-0">
             Search
           </button>
         </div>
@@ -133,22 +134,22 @@ export default function HomeScreen() {
           <h3 className="font-bold text-gray-900">Book categories</h3>
           <button onClick={() => navigate('/search')} className="text-[#006A4E] text-sm font-medium">View all</button>
         </div>
-        <div className="flex gap-4 overflow-x-auto pb-2 no-scrollbar -mx-4 px-4">
+        <div className="flex gap-4 overflow-x-auto pb-2 no-scrollbar -mx-4 px-4 scroll-smooth">
           {CATEGORIES.map(cat => (
             <div 
               key={cat.id} 
-              onClick={() => navigate('/search')}
-              className="flex flex-col items-center gap-2 min-w-[72px] cursor-pointer"
+              onClick={() => cat.id === 'donation' ? navigate('/donations') : navigate('/search')}
+              className="flex flex-col items-center gap-2 min-w-[72px] cursor-pointer shrink-0"
             >
               <div className="w-16 h-16 rounded-full border border-gray-200 bg-white flex items-center justify-center overflow-hidden shadow-sm hover:border-[#006A4E] transition-colors p-2">
                 <img src={cat.icon} alt={cat.label} className="w-full h-full object-contain" />
               </div>
-              <span className="text-xs text-gray-700 text-center leading-tight">{cat.label}</span>
+              <span className="text-[11px] text-gray-700 text-center leading-tight font-medium">{cat.label}</span>
             </div>
           ))}
           <div 
             onClick={() => navigate('/search')}
-            className="flex flex-col items-center justify-center min-w-[40px] cursor-pointer"
+            className="flex flex-col items-center justify-center min-w-[40px] cursor-pointer shrink-0"
           >
             <ChevronRight className="w-6 h-6 text-gray-400 hover:text-[#006A4E] transition-colors" />
           </div>
@@ -220,6 +221,24 @@ export default function HomeScreen() {
               </div>
             </div>
           ))}
+        </div>
+      </div>
+
+      {/* Donation Books Section */}
+      <div className="mb-8">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="font-bold text-gray-900">Donation books</h3>
+          <button onClick={() => navigate('/donations')} className="text-[#006A4E] text-sm font-medium">View all</button>
+        </div>
+        <div className="bg-white rounded-2xl p-4 shadow-sm border border-[#E8F5F0] flex items-center gap-4 cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate('/donations')}>
+          <div className="w-16 h-16 bg-[#006A4E] rounded-xl flex items-center justify-center shrink-0">
+            <Heart className="w-8 h-8 text-white fill-white" />
+          </div>
+          <div className="flex-1">
+            <h4 className="font-bold text-gray-900 text-sm">Free Books for Students</h4>
+            <p className="text-xs text-gray-500 mt-1">Browse books donated by the community to support your studies.</p>
+          </div>
+          <ChevronRight className="w-5 h-5 text-gray-400" />
         </div>
       </div>
 

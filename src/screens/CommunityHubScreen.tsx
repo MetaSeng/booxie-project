@@ -265,7 +265,7 @@ export default function CommunityHubScreen() {
       </div>
 
       {/* Floating Action Button */}
-      <div className="fixed bottom-28 left-0 right-0 max-w-md mx-auto pointer-events-none z-20">
+      <div className="fixed bottom-28 left-0 right-0 md:max-w-md md:mx-auto pointer-events-none z-20 w-full">
         <button 
           onClick={() => setIsComposing(true)}
           className="absolute right-4 w-14 h-14 bg-[#006A4E] text-white rounded-full flex items-center justify-center shadow-lg hover:bg-[#005C44] transition-colors pointer-events-auto"

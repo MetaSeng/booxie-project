@@ -2,10 +2,11 @@ import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { ArrowLeft, MapPin, Truck, CreditCard, CheckCircle2 } from 'lucide-react';
 import { doc, updateDoc } from 'firebase/firestore';
-import { db, handleFirestoreError, OperationType } from '../firebase';
+import { db, auth, handleFirestoreError, OperationType } from '../firebase';
 import { AbaPayIcon, AcledaPayIcon, CashIcon } from '../components/PaymentIcons';
 import { useCart } from '../context/CartContext';
 import BooxieLogo from '../components/BooxieLogo';
+import { addRewardPoints, REWARD_POINTS } from '../lib/rewards';
 
 export default function CheckoutScreen() {
   const navigate = useNavigate();
@@ -96,6 +97,13 @@ export default function CheckoutScreen() {
       if (!singleBook) {
         clearCart();
       }
+
+      // Award points for buying
+      if (auth.currentUser) {
+        const pointsToAward = checkoutItems.length * REWARD_POINTS.BUY;
+        await addRewardPoints(auth.currentUser.uid, pointsToAward, 'purchased');
+      }
+
       navigate('/receipt', { state: { orderData } });
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `books`);

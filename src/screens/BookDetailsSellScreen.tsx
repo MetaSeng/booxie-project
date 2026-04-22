@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db, auth, handleFirestoreError, OperationType } from '../firebase';
 import { ChevronLeft, ChevronDown } from 'lucide-react';
+import { addRewardPoints, REWARD_POINTS } from '../lib/rewards';
 
 export default function BookDetailsSellScreen() {
   const navigate = useNavigate();
@@ -24,20 +25,22 @@ export default function BookDetailsSellScreen() {
     condition: 'Used',
     description: '',
     imageUrl: '',
-    backCoverUrl: ''
+    backCoverUrl: '',
+    type: 'sale' // 'sale' or 'donation'
   });
 
   useEffect(() => {
     if (location.state?.scannedData) {
-      const { title, author, description, price, imageUrl, backCoverUrl } = location.state.scannedData;
+      const { title, author, description, price, imageUrl, backCoverUrl, type } = location.state.scannedData;
       setFormData(prev => ({
         ...prev,
         title: title || prev.title,
         author: author || prev.author,
         description: description || prev.description,
-        price: price ? price.toString() : prev.price,
+        price: (price !== undefined && price !== null) ? price.toString() : prev.price,
         imageUrl: imageUrl || prev.imageUrl,
-        backCoverUrl: backCoverUrl || prev.backCoverUrl
+        backCoverUrl: backCoverUrl || prev.backCoverUrl,
+        type: type || (price === 0 ? 'donation' : 'sale')
       }));
     }
   }, [location.state]);
@@ -59,18 +62,24 @@ export default function BookDetailsSellScreen() {
         category: formData.category,
         isbn: formData.isbn,
         description: formData.description,
-        price: Number(formData.price),
+        price: formData.type === 'donation' ? 0 : Number(formData.price),
         sellerId: auth.currentUser.uid,
         sellerName: auth.currentUser.displayName || 'Anonymous',
         status: 'available',
         condition: formData.condition.toLowerCase().replace(' ', '-'),
-        type: 'sale',
+        type: formData.type,
         createdAt: serverTimestamp(),
         imageUrl: formData.imageUrl,
         backCoverUrl: formData.backCoverUrl
       };
 
       await addDoc(collection(db, 'books'), bookData);
+      
+      // Award points
+      const pointsToAward = formData.type === 'donation' ? REWARD_POINTS.DONATE : REWARD_POINTS.SELL;
+      const rewardType = formData.type === 'donation' ? 'donated' : 'sold';
+      await addRewardPoints(auth.currentUser.uid, pointsToAward, rewardType);
+
       setShowConfirm(false);
       setShowSuccess(true);
     } catch (err) {
@@ -91,13 +100,23 @@ export default function BookDetailsSellScreen() {
           </svg>
         </div>
         <h2 className="text-2xl font-bold text-gray-900 mb-2">Thank You!</h2>
-        <p className="text-gray-500 text-center mb-8">Your book has been successfully listed.</p>
-        <button 
-          onClick={() => navigate('/')}
-          className="w-full bg-booxie-green text-white py-4 rounded-full font-bold text-lg shadow-lg shadow-booxie-green/30 hover:bg-booxie-green-dark transition-colors"
-        >
-          Back to Home
-        </button>
+        <p className="text-gray-500 text-center mb-8">
+          Your book has been successfully listed for {formData.type === 'donation' ? 'donation' : 'sale'}.
+        </p>
+        <div className="w-full space-y-3">
+          <button 
+            onClick={() => navigate(formData.type === 'donation' ? '/donations' : '/search')}
+            className="w-full bg-booxie-green text-white py-4 rounded-full font-bold text-lg shadow-lg shadow-booxie-green/30 hover:bg-booxie-green-dark transition-colors"
+          >
+            View {formData.type === 'donation' ? 'Donations' : 'Listings'}
+          </button>
+          <button 
+            onClick={() => navigate('/')}
+            className="w-full bg-gray-100 text-gray-700 py-4 rounded-full font-bold text-lg hover:bg-gray-200 transition-colors"
+          >
+            Back to Home
+          </button>
+        </div>
       </div>
     );
   }
@@ -205,19 +224,41 @@ export default function BookDetailsSellScreen() {
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Price ( $ ) *</label>
-              <div className="relative">
-                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-medium">$</span>
-                <input 
-                  type="number" 
-                  step="0.01"
-                  min="0"
-                  value={formData.price}
-                  onChange={e => setFormData({...formData, price: e.target.value})}
-                  className="w-full bg-white border border-gray-200 rounded-xl pl-8 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-booxie-green"
-                />
+              <label className="block text-xs font-medium text-gray-600 mb-1">Listing Type</label>
+              <div className="flex gap-2">
+                {['sale', 'donation'].map(type => (
+                  <button
+                    key={type}
+                    type="button"
+                    onClick={() => setFormData({...formData, type})}
+                    className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition-colors border ${
+                      formData.type === type 
+                        ? 'bg-booxie-green text-white border-booxie-green' 
+                        : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+                    }`}
+                  >
+                    {type === 'sale' ? 'Sell' : 'Donate'}
+                  </button>
+                ))}
               </div>
             </div>
+
+            {formData.type === 'sale' && (
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Price ( $ ) *</label>
+                <div className="relative">
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-medium">$</span>
+                  <input 
+                    type="number" 
+                    step="0.01"
+                    min="0"
+                    value={formData.price}
+                    onChange={e => setFormData({...formData, price: e.target.value})}
+                    className="w-full bg-white border border-gray-200 rounded-xl pl-8 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-booxie-green"
+                  />
+                </div>
+              </div>
+            )}
 
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Description</label>
@@ -245,7 +286,9 @@ export default function BookDetailsSellScreen() {
 
             <div>
               <p className="text-sm text-gray-500 mb-1">Price</p>
-              <p className="text-3xl font-bold text-booxie-green">${formData.price || '0.00'}</p>
+              <p className="text-3xl font-bold text-booxie-green">
+                {formData.type === 'donation' ? 'Free' : `$${formData.price || '0.00'}`}
+              </p>
             </div>
 
             {formData.description && (
@@ -294,7 +337,7 @@ export default function BookDetailsSellScreen() {
               disabled={isSubmitting}
               className="flex-1 bg-booxie-green text-white py-3.5 rounded-full font-bold text-sm shadow-md shadow-booxie-green/20 hover:bg-booxie-green-dark transition-colors disabled:opacity-50"
             >
-              Sell
+              {formData.type === 'donation' ? 'Donate' : 'Sell'}
             </button>
           </>
         )}

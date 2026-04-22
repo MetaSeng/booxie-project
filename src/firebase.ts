@@ -23,38 +23,21 @@ export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
 export const storage = getStorage(app);
 
 export const googleProvider = new GoogleAuthProvider();
+googleProvider.setCustomParameters({
+  prompt: 'select_account'
+});
 
 export const signInWithGoogle = async () => {
   try {
+    // Simplify: only handle auth here. AuthContext handles firestore syncing.
     const result = await signInWithPopup(auth, googleProvider);
-    const user = result.user;
-    
-    // Check if user document exists, if not create it
-    const userRef = doc(db, 'users', user.uid);
-    const userSnap = await getDoc(userRef);
-    
-    if (!userSnap.exists()) {
-      await setDoc(userRef, {
-        uid: user.uid,
-        name: user.displayName || 'User',
-        email: user.email,
-        photoURL: user.photoURL || '',
-        role: 'user',
-        rewardPoints: 0,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
-      });
-    } else {
-      await setDoc(userRef, {
-        name: user.displayName || userSnap.data().name,
-        photoURL: user.photoURL || userSnap.data().photoURL,
-        updatedAt: serverTimestamp()
-      }, { merge: true });
+    return result.user;
+  } catch (error: any) {
+    console.error("Firebase Auth Error:", error.code, error.message, error);
+    // If it's a generic internal error, it might be due to unauthorized domain
+    if (error.code === 'auth/internal-error') {
+      throw new Error('Internal authentication error. Please ensure this domain is added to your Firebase authorized domains.');
     }
-    
-    return user;
-  } catch (error) {
-    console.error("Error signing in with Google", error);
     throw error;
   }
 };
