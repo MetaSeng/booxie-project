@@ -12,14 +12,51 @@ export default function ScanEditScreen() {
   const [scales, setScales] = useState<number[]>(new Array(images.length).fill(1));
   const [brightness, setBrightness] = useState<number[]>(new Array(images.length).fill(100));
 
-  const handleDone = () => {
+  const applyImageAdjustments = (src: string, rotation: number, scale: number, brightnessValue: number) => (
+    new Promise<string>((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const normalizedRotation = ((rotation % 360) + 360) % 360;
+        const swapDimensions = normalizedRotation === 90 || normalizedRotation === 270;
+
+        canvas.width = swapDimensions ? img.height : img.width;
+        canvas.height = swapDimensions ? img.width : img.height;
+
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          resolve(src);
+          return;
+        }
+
+        ctx.filter = `brightness(${brightnessValue}%)`;
+        ctx.translate(canvas.width / 2, canvas.height / 2);
+        ctx.rotate((normalizedRotation * Math.PI) / 180);
+
+        const drawWidth = img.width * scale;
+        const drawHeight = img.height * scale;
+        ctx.drawImage(img, -drawWidth / 2, -drawHeight / 2, drawWidth, drawHeight);
+
+        resolve(canvas.toDataURL('image/jpeg', 0.92));
+      };
+
+      img.onerror = () => resolve(src);
+      img.src = src;
+    })
+  );
+
+  const handleDone = async () => {
+    const processedImages = await Promise.all(
+      images.map((image, idx) => applyImageAdjustments(image, rotations[idx], scales[idx], brightness[idx]))
+    );
+
     navigate('/sell/details', {
       state: {
         scannedData: {
           ...frontCoverData,
-          imageUrl: images[0],
-          backCoverUrl: images.length > 1 ? images[1] : undefined,
-          extraImages: images.slice(2)
+          imageUrl: processedImages[0],
+          backCoverUrl: processedImages.length > 1 ? processedImages[1] : undefined,
+          extraImages: processedImages.slice(2)
         }
       }
     });

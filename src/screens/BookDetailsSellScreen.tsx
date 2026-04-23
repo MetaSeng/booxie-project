@@ -4,9 +4,9 @@ import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db, auth, handleFirestoreError, OperationType } from '../firebase';
 import { ChevronLeft, ChevronDown, Sparkles, BookOpen, GraduationCap, Microscope, Globe, ScrollText, Library, Languages, Check } from 'lucide-react';
 import { addRewardPoints, REWARD_POINTS } from '../lib/rewards';
-import { GoogleGenAI, Type } from "@google/genai";
 import { motion, AnimatePresence } from 'motion/react';
 import { isGeminiQuotaError } from '../lib/geminiErrors';
+import { getGeminiAI } from '../lib/gemini';
 
 const CATEGORIES = [
   { id: 'Textbook', icon: BookOpen },
@@ -75,7 +75,10 @@ export default function BookDetailsSellScreen() {
     setIsRecommending(true);
     setQuotaExceeded(false);
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      const ai = getGeminiAI();
+      if (!ai) {
+        return;
+      }
       const prompt = `Based on this book info: Title: "${title}", Author: "${author}", Description: "${desc}". 
       Select the best category from this list: ${CATEGORIES.map(c => c.id).join(', ')}. 
       Return only the category name. If unsure, return "Textbook".`;
@@ -308,12 +311,14 @@ export default function BookDetailsSellScreen() {
               </div>
               <div className="flex gap-2">
                 {CONDITIONS.map(cond => (
-                  <div
+                  <button
                     key={cond}
+                    type="button"
+                    onClick={() => setFormData({ ...formData, condition: cond })}
                     className={`flex-1 flex items-center justify-center py-3.5 rounded-2xl text-[11px] font-bold transition-all border-2 relative ${
                       formData.condition === cond 
                         ? 'bg-[#006A4E] text-white border-[#006A4E] shadow-lg shadow-[#006A4E]/20' 
-                        : 'bg-gray-50 text-gray-600 border-gray-100 cursor-not-allowed'
+                        : 'bg-gray-50 text-gray-600 border-gray-100 hover:border-gray-200'
                     }`}
                   >
                     {cond}
@@ -322,10 +327,10 @@ export default function BookDetailsSellScreen() {
                         <Check className="w-3 h-3 text-[#006A4E]" strokeWidth={4} />
                       </div>
                     )}
-                  </div>
+                  </button>
                 ))}
               </div>
-              <p className="text-[10px] text-gray-400 mt-2 italic text-center">Condition is locked and verified by Booxie AI Vision.</p>
+              <p className="text-[10px] text-gray-400 mt-2 italic text-center">Condition starts with a scan guess when available, but you can adjust it before listing.</p>
             </div>
 
             <div>

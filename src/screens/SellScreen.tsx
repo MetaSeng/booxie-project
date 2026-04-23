@@ -2,7 +2,7 @@ import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom';
 import Webcam from 'react-webcam';
 import { getGeminiAI } from '../lib/gemini';
-import { Loader2, X, ReceiptText, FileText, Book, BookOpen, FileSearch, Image as ImageIcon, Check } from 'lucide-react';
+import { Loader2, ReceiptText, FileText, Book, BookOpen, FileSearch, Check, CameraOff } from 'lucide-react';
 import { isGeminiQuotaError } from '../lib/geminiErrors';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -22,6 +22,8 @@ export default function SellScreen() {
   
   const [isScanning, setIsScanning] = useState(false);
   const [error, setError] = useState('');
+  const [cameraReady, setCameraReady] = useState(false);
+  const [cameraError, setCameraError] = useState('');
   const [activeTab, setActiveTab] = useState('Front Cover');
   const [listingType, setListingType] = useState<'sale' | 'donation'>('sale');
   const [frontCoverData, setFrontCoverData] = useState<any>(null);
@@ -45,6 +47,15 @@ export default function SellScreen() {
       default: return null;
     }
   };
+
+  const buildFallbackFrontCoverData = useCallback(() => ({
+    title: 'Untitled Book',
+    author: 'Unknown Author',
+    description: '',
+    price: listingType === 'donation' ? 0 : 5,
+    condition: 'Good',
+    type: listingType,
+  }), [listingType]);
 
   // Sync front cover data with listing type
   useEffect(() => {
@@ -73,9 +84,16 @@ export default function SellScreen() {
 
   const captureAndAnalyze = useCallback(async (isManual = false) => {
     if (isScanningRef.current || !webcamRef.current) return;
+    if (!cameraReady) {
+      setError('Camera is not ready yet. Please allow camera access and try again.');
+      return;
+    }
     
     const imageSrc = webcamRef.current.getScreenshot();
-    if (!imageSrc) return;
+    if (!imageSrc) {
+      setError('Unable to capture an image from the camera. Please try again.');
+      return;
+    }
 
     isScanningRef.current = true;
     setIsScanning(true);
@@ -86,10 +104,26 @@ export default function SellScreen() {
     try {
       const ai = getGeminiAI();
       if (!ai) {
-        // Fallback for demo when no key is present
         if (isManual) {
-          setFrontCoverImage(imageSrc);
-          setActiveTab('Back Cover');
+          if (activeTab === 'Front Cover') {
+            const fallbackData = buildFallbackFrontCoverData();
+            setFrontCoverData(fallbackData);
+            setFrontCoverImage(imageSrc);
+            frontCoverRef.current = imageSrc;
+            setActiveTab('Back Cover');
+          } else if (activeTab === 'Back Cover') {
+            setBackCoverImage(imageSrc);
+            backCoverRef.current = imageSrc;
+            navigate('/sell/edit', {
+              state: {
+                images: [frontCoverRef.current, imageSrc, receiptRef.current].filter(Boolean),
+                frontCoverData: frontCoverData || buildFallbackFrontCoverData(),
+              }
+            });
+          } else if (activeTab === 'Receipt') {
+            setReceiptImage(imageSrc);
+            receiptRef.current = imageSrc;
+          }
         }
         return;
       }
@@ -123,10 +157,20 @@ export default function SellScreen() {
               setActiveTab('Back Cover');
             }, 1000);
           } else if (isManual) {
-            setError('No book front cover detected. Please ensure the book is in focus.');
+            const fallbackData = buildFallbackFrontCoverData();
+            setFrontCoverData(fallbackData);
+            setFrontCoverImage(imageSrc);
+            frontCoverRef.current = imageSrc;
+            setActiveTab('Back Cover');
           }
         } catch (e) {
-          if (isManual) setError('AI processing failed. Please try again.');
+          if (isManual) {
+            const fallbackData = buildFallbackFrontCoverData();
+            setFrontCoverData(fallbackData);
+            setFrontCoverImage(imageSrc);
+            frontCoverRef.current = imageSrc;
+            setActiveTab('Back Cover');
+          }
         }
       } else if (activeTab === 'Back Cover') {
         const response = await ai.models.generateContent({
@@ -156,10 +200,26 @@ export default function SellScreen() {
               });
             }, 1500); 
           } else if (isManual) {
-            setError('No book back cover detected. Please flip the book.');
+            setBackCoverImage(imageSrc);
+            backCoverRef.current = imageSrc;
+            navigate('/sell/edit', {
+              state: {
+                images: [frontCoverRef.current, imageSrc, receiptRef.current].filter(Boolean),
+                frontCoverData: frontCoverData || buildFallbackFrontCoverData(),
+              }
+            });
           }
         } catch (e) {
-          if (isManual) setError('Verification failed. Try again.');
+          if (isManual) {
+            setBackCoverImage(imageSrc);
+            backCoverRef.current = imageSrc;
+            navigate('/sell/edit', {
+              state: {
+                images: [frontCoverRef.current, imageSrc, receiptRef.current].filter(Boolean),
+                frontCoverData: frontCoverData || buildFallbackFrontCoverData(),
+              }
+            });
+          }
         }
       } else if (activeTab === 'Receipt') {
         setReceiptImage(imageSrc);
@@ -177,12 +237,12 @@ export default function SellScreen() {
       isScanningRef.current = false;
       setIsScanning(false);
     }
-  }, [activeTab, frontCoverData, frontCoverImage, receiptImage, listingType, navigate]);
+  }, [activeTab, buildFallbackFrontCoverData, cameraReady, frontCoverData, listingType, navigate]);
 
   useEffect(() => {
     let timeoutId: NodeJS.Timeout;
     const runAutoScan = async () => {
-      if (!autoScanEnabled) return;
+      if (!autoScanEnabled || !cameraReady || cameraError) return;
       if (activeTab === 'Front Cover' || activeTab === 'Back Cover') {
         await captureAndAnalyze();
         timeoutId = setTimeout(runAutoScan, 8000); // 8s interval for AI detection
@@ -241,9 +301,28 @@ export default function SellScreen() {
             audio={false}
             ref={webcamRef}
             screenshotFormat="image/jpeg"
+            screenshotQuality={0.92}
             videoConstraints={{ facingMode: "environment" }}
+            onUserMedia={() => {
+              setCameraReady(true);
+              setCameraError('');
+            }}
+            onUserMediaError={() => {
+              setCameraReady(false);
+              setCameraError('Camera access failed. Please allow camera permission or try another browser/device.');
+            }}
             className="w-full h-full object-cover"
           />
+
+          {cameraError && (
+            <div className="absolute inset-0 bg-black/70 flex flex-col items-center justify-center text-center px-6">
+              <div className="w-14 h-14 rounded-full bg-white/10 flex items-center justify-center mb-4">
+                <CameraOff className="w-7 h-7 text-white" />
+              </div>
+              <p className="text-sm font-bold">{cameraError}</p>
+              <p className="text-xs text-white/80 mt-2">You can still continue after granting camera access and reopening this screen.</p>
+            </div>
+          )}
           
           {/* Corner Brackets */}
           <div className="absolute inset-0 pointer-events-none">
@@ -361,8 +440,8 @@ export default function SellScreen() {
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
             onClick={handleManualCapture}
-            disabled={isScanning}
-            className="relative w-20 h-20 rounded-full border-[5px] border-white/40 flex items-center justify-center p-1 group"
+            disabled={isScanning || !!cameraError}
+            className="relative w-20 h-20 rounded-full border-[5px] border-white/40 flex items-center justify-center p-1 group disabled:opacity-50"
           >
             <div className="w-full h-full bg-white rounded-full shadow-[0_0_30px_rgba(255,255,255,0.4)] group-active:scale-95 transition-transform" />
             <div className="absolute inset-2 border-2 border-[#1A8765]/20 rounded-full" />
