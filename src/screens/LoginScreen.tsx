@@ -1,13 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { signInWithGoogle, logInWithEmail, signInAnonymously } from '../firebase';
 import { useAuth } from '../context/AuthContext';
 import { Mail, Lock, ArrowLeft, Loader2, User, Facebook } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { motion } from 'motion/react';
 import BooxieLogo from '../components/BooxieLogo';
 
 export default function LoginScreen() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const successMessage = location.state?.message;
+  
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -26,27 +29,14 @@ export default function LoginScreen() {
     try {
       setIsLoading(true);
       setError('');
-      await signInWithGoogle();
-      localStorage.removeItem('guestMode');
-      navigate('/');
+      const user = await signInWithGoogle();
+      if (user) {
+        localStorage.removeItem('guestMode');
+        navigate('/');
+      }
     } catch (err: any) {
       console.error(err);
       setError(err.message || 'Failed to sign in with Google. Please try again.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleGuestContinue = async () => {
-    try {
-      setIsLoading(true);
-      setError('');
-      await signInAnonymously();
-      navigate('/');
-    } catch (err) {
-      console.error(err);
-      localStorage.setItem('guestMode', 'true');
-      navigate('/');
     } finally {
       setIsLoading(false);
     }
@@ -93,6 +83,16 @@ export default function LoginScreen() {
           <h2 className="text-2xl font-bold text-gray-800 mb-1">Log In</h2>
           <p className="text-gray-400 text-xs font-medium">We’re here to help you!</p>
         </div>
+        
+        {successMessage && (
+          <motion.div 
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-[#E8F5F0] text-[#006A4E] p-4 rounded-xl mb-6 text-xs text-center border border-[#B6E3D4] font-medium"
+          >
+            {successMessage}
+          </motion.div>
+        )}
         
         {error && (
           <div className="bg-red-50 text-red-600 p-4 rounded-xl mb-6 text-[11px] text-center border border-red-100 flex flex-col gap-2">
@@ -162,12 +162,6 @@ export default function LoginScreen() {
 
         {/* Buttons */}
         <div className="space-y-3">
-          <button
-            onClick={handleGuestContinue}
-            className="w-full bg-white border border-[#00845A] text-[#00845A] py-3 rounded-xl font-bold text-sm hover:bg-[#f0faf5] transition-colors"
-          >
-            Continue as guest
-          </button>
           <button
             onClick={handleGoogleLogin}
             className="w-full bg-[#F5FAF7] border border-gray-100 text-gray-700 py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-3 hover:bg-gray-100 transition-colors"

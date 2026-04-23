@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { motion } from 'motion/react';
 import BooxieLogo from '../components/BooxieLogo';
-import { signInAnonymously, signInWithGoogle } from '../firebase';
+import { logInAsDemo, signInWithGoogle } from '../firebase';
 import { Loader2 } from 'lucide-react';
 
 export default function WelcomeScreen() {
@@ -15,8 +15,10 @@ export default function WelcomeScreen() {
     try {
       setIsGoogleLoading(true);
       setError('');
-      await signInWithGoogle();
-      navigate('/');
+      const user = await signInWithGoogle();
+      if (user) {
+        navigate('/');
+      }
     } catch (err: any) {
       console.error("Failed to sign in with Google", err);
       setError(err.message || 'Failed to sign in with Google');
@@ -28,13 +30,23 @@ export default function WelcomeScreen() {
   const handleGuestContinue = async () => {
     try {
       setIsGuestLoading(true);
-      await signInAnonymously();
+      setError('');
+      // Attempt real demo login first
+      await logInAsDemo();
       navigate('/');
-    } catch (error) {
-      console.error("Failed to sign in as guest", error);
-      // Fallback to old behavior if anonymous auth fails (e.g. not enabled in console)
-      localStorage.setItem('guestMode', 'true');
-      navigate('/');
+    } catch (err: any) {
+      console.error("Failed to sign in as guest", err);
+      
+      // If even email/pass auth is disabled in the console, use local guest fallback
+      if (err.code === 'auth/operation-not-allowed' || err.code === 'auth/admin-restricted-operation') {
+        localStorage.setItem('guestMode', 'true');
+        // Force a small delay to simulate loading for UX
+        setTimeout(() => {
+          navigate('/');
+        }, 800);
+      } else {
+        setError('Connection error. Please try again or refresh the page.');
+      }
     } finally {
       setIsGuestLoading(false);
     }
@@ -42,6 +54,12 @@ export default function WelcomeScreen() {
 
   return (
     <div className="h-full h-dvh bg-[#F4FBF7] flex flex-col items-center justify-center p-6 text-center overflow-hidden font-sans">
+      {error && (
+        <div className="fixed top-4 left-4 right-4 z-50 bg-red-50 text-red-600 p-4 rounded-xl text-xs text-center border border-red-100 shadow-lg">
+          {error}
+          <button onClick={() => setError('')} className="ml-2 font-bold underline">Dismiss</button>
+        </div>
+      )}
       <motion.div
         initial={{ scale: 0.9, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
@@ -80,6 +98,14 @@ export default function WelcomeScreen() {
           className="w-full bg-white text-[#00845A] border-2 border-[#00845A] py-3.5 rounded-2xl font-bold text-xl hover:bg-[#E8F5F0] transition-all active:scale-[0.98]"
         >
           Log In
+        </button>
+
+        <button
+          onClick={handleGuestContinue}
+          disabled={isGuestLoading}
+          className="w-full bg-white text-[#00845A] border-2 border-[#00845A] py-3.5 rounded-2xl font-bold text-xl hover:bg-[#E8F5F0] transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+        >
+          {isGuestLoading ? <Loader2 className="w-6 h-6 animate-spin" /> : 'Continue as Guest'}
         </button>
       </motion.div>
     </div>

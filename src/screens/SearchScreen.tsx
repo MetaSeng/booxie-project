@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { collection, query, getDocs, where } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../firebase';
-import { Search, ChevronDown, ChevronUp, Heart, ArrowLeft, Star } from 'lucide-react';
+import { Search, ChevronDown, Heart, ArrowLeft, Star, X, Check } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { motion, AnimatePresence } from 'motion/react';
 import BooxieLogo from '../components/BooxieLogo';
 import { useCart } from '../context/CartContext';
 
@@ -24,9 +25,9 @@ export default function SearchScreen() {
   const [results, setResults] = useState<BookListing[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
+  const [selectedFilters, setSelectedFilters] = useState<Record<string, string>>({});
   const navigate = useNavigate();
   const { addToCart } = useCart();
-  const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     // Fetch real data on mount
@@ -47,16 +48,6 @@ export default function SearchScreen() {
       }
     };
     fetchInitialData();
-  }, []);
-
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setActiveDropdown(null);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
   const handleSearch = async (e?: React.FormEvent) => {
@@ -102,18 +93,32 @@ export default function SearchScreen() {
     setActiveDropdown(null);
     setIsSearching(true);
     
+    // Toggle filter: if same option selected again, clear it
+    const newFilters = { ...selectedFilters };
+    if (newFilters[filter] === option) {
+      delete newFilters[filter];
+    } else {
+      newFilters[filter] = option;
+    }
+    setSelectedFilters(newFilters);
+    
     try {
       let q = query(collection(db, 'books'), where('status', '==', 'available'));
       
-      if (filter === 'Condition') {
-        q = query(q, where('condition', '==', option.toLowerCase().replace(' ', '-')));
-      } else if (filter === 'Category') {
-        if (option === 'Donation') {
-          q = query(q, where('type', '==', 'donation'));
-        } else {
-          q = query(q, where('category', '==', option));
+      // Apply all active filters
+      Object.entries(newFilters).forEach(([f, val]) => {
+        if (f === 'Condition') {
+          q = query(q, where('condition', '==', val.toLowerCase().replace(' ', '-')));
+        } else if (f === 'Category') {
+          if (val === 'Donation') {
+            q = query(q, where('type', '==', 'donation'));
+          } else {
+            q = query(q, where('category', '==', val));
+          }
+        } else if (f === 'Grade') {
+           q = query(q, where('grade', '==', val));
         }
-      }
+      });
       
       const querySnapshot = await getDocs(q);
       const booksData = querySnapshot.docs.map(doc => ({
@@ -170,40 +175,90 @@ export default function SearchScreen() {
       </div>
 
       {/* Filters */}
-      <div className="px-4 pb-4 relative" ref={dropdownRef}>
+      <div className="px-4 pb-4">
         <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
-          {Object.keys(filterOptions).map((filter) => (
-            <div key={filter} className="relative">
+          {Object.keys(filterOptions).map((filter) => {
+            const isSelected = !!selectedFilters[filter];
+            return (
               <button 
-                onClick={() => setActiveDropdown(activeDropdown === filter ? null : filter)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 bg-white border ${activeDropdown === filter ? 'border-[#006A4E]' : 'border-gray-200'} rounded-lg text-xs font-medium text-gray-600 whitespace-nowrap shadow-sm transition-colors`}
+                key={filter}
+                onClick={() => setActiveDropdown(filter)}
+                className={`flex items-center gap-1.5 px-4 py-2 bg-white border ${
+                  isSelected ? 'border-[#006A4E] bg-[#E8F5F0] text-[#006A4E]' : 'border-gray-100 text-gray-500'
+                } rounded-full text-[11px] font-bold whitespace-nowrap shadow-sm transition-all duration-300 active:scale-95`}
               >
-                {filter}
-                {activeDropdown === filter ? (
-                  <ChevronUp className="w-3.5 h-3.5 text-gray-400" />
-                ) : (
-                  <ChevronDown className="w-3.5 h-3.5 text-gray-400" />
-                )}
+                {isSelected ? selectedFilters[filter] : filter}
+                <ChevronDown className={`w-3 h-3 transition-transform duration-300 ${activeDropdown === filter ? 'rotate-180' : ''}`} />
               </button>
-              
-              {/* Dropdown Menu */}
-              {activeDropdown === filter && (
-                <div className="absolute top-full left-0 mt-1 w-32 bg-white border border-gray-100 rounded-xl shadow-lg z-50 py-2 max-h-64 overflow-y-auto">
-                  {filterOptions[filter as keyof typeof filterOptions].map((option) => (
-                    <button
-                      key={option}
-                      onClick={() => handleFilterSelect(filter, option)}
-                      className="w-full text-left px-4 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors"
-                    >
-                      {option}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
+
+      {/* Modern Filter Overlay */}
+      <AnimatePresence>
+        {activeDropdown && (
+          <>
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setActiveDropdown(null)}
+              className="fixed inset-0 bg-black/40 backdrop-blur-[2px] z-[60]"
+            />
+            <motion.div 
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 30, stiffness: 300 }}
+              className="fixed bottom-0 left-0 right-0 z-[70] bg-white rounded-t-[40px] px-6 pt-10 pb-12 shadow-2xl overflow-hidden"
+            >
+              <div className="absolute top-4 left-1/2 -translate-x-1/2 w-12 h-1 bg-gray-200 rounded-full" />
+              
+              <div className="flex items-center justify-between mb-8">
+                <div>
+                  <h3 className="text-xl font-bold text-gray-900">Select {activeDropdown}</h3>
+                  <p className="text-xs text-gray-400 mt-1">Refine your book search</p>
+                </div>
+                <button 
+                  onClick={() => setActiveDropdown(null)}
+                  className="p-2 bg-gray-50 rounded-full text-gray-400 hover:text-gray-900 transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 max-h-[50vh] overflow-y-auto no-scrollbar pb-6 capitalize">
+                {filterOptions[activeDropdown as keyof typeof filterOptions].map((option) => {
+                  const isActive = selectedFilters[activeDropdown!] === option;
+                  return (
+                    <motion.button
+                      key={option}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={() => handleFilterSelect(activeDropdown!, option)}
+                      className={`flex items-center justify-between px-4 py-4 rounded-2xl border-2 transition-all text-sm font-bold ${
+                        isActive 
+                          ? 'border-[#006A4E] bg-[#E8F5F0] text-[#006A4E]' 
+                          : 'border-gray-50 bg-gray-50 text-gray-500 hover:border-gray-200'
+                      }`}
+                    >
+                      <span>{option}</span>
+                      {isActive && <Check className="w-4 h-4" />}
+                    </motion.button>
+                  );
+                })}
+              </div>
+              
+              <button 
+                onClick={() => setActiveDropdown(null)}
+                className="w-full mt-6 bg-[#006A4E] text-white py-4 rounded-2xl font-bold text-sm shadow-xl shadow-[#006A4E]/20 active:scale-95 transition-all"
+              >
+                Apply Selection
+              </button>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
 
       {/* Book Grid */}
       <div className="flex-1 overflow-y-auto px-4 pb-6">
@@ -217,22 +272,21 @@ export default function SearchScreen() {
               <div 
                 key={book.id}
                 onClick={() => navigate(`/book/${book.id}`)}
-                className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col cursor-pointer hover:shadow-md transition-shadow"
+                className="bg-white rounded-[24px] shadow-sm border border-gray-100 overflow-hidden flex flex-col cursor-pointer hover:shadow-md transition-shadow group"
               >
                 {/* Image Container */}
-                <div className="relative aspect-[3/4] bg-gray-100 shrink-0">
+                <div className="relative aspect-square bg-[#F3F4F6] shrink-0 p-2">
                   {book.imageUrl ? (
-                    <img src={book.imageUrl} alt={book.title} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                    <img src={book.imageUrl} alt={book.title} className="w-full h-full object-contain rounded-xl" referrerPolicy="no-referrer" />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center bg-gray-200">
                       <span className="text-gray-400 text-xs">No image</span>
                     </div>
                   )}
                   <button 
-                    className="absolute top-2 right-2 p-1.5 bg-white/90 backdrop-blur-sm rounded-full text-gray-400 hover:text-red-500 transition-colors shadow-sm"
+                    className="absolute top-3 right-3 p-1.5 bg-white rounded-full text-gray-400 hover:text-red-500 transition-colors shadow-sm"
                     onClick={(e) => {
                       e.stopPropagation();
-                      // Toggle favorite logic here
                     }}
                   >
                     <Heart className="w-4 h-4" />
@@ -241,28 +295,32 @@ export default function SearchScreen() {
                 
                 {/* Content */}
                 <div className="p-3 flex flex-col flex-1">
-                  <h4 className="font-bold text-gray-900 text-sm line-clamp-1 mb-2">{book.title}</h4>
+                  <h4 className="font-bold text-gray-900 text-sm line-clamp-1 mb-2 leading-tight">{book.title}</h4>
                   
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-[10px] font-medium text-gray-600 bg-white border border-gray-200 px-2 py-0.5 rounded-md">
-                      {book.condition}
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-[10px] font-medium text-gray-600 bg-white border border-gray-200 px-2.5 py-0.5 rounded-md shadow-sm">
+                      {book.condition || 'Good'}
                     </span>
-                    <div className="flex items-center gap-0.5">
+                    <div className="flex items-center gap-0.5 ml-auto">
                       {[...Array(5)].map((_, i) => (
                         <Star key={i} className="w-2.5 h-2.5 text-[#FFB800] fill-[#FFB800]" />
                       ))}
-                      <span className="text-[8px] text-gray-500 ml-0.5">({(book.rating || 5.0).toFixed(1)})</span>
+                      <span className="text-[8px] text-gray-500 ml-0.5">({(book.rating || 4.5).toFixed(1)})</span>
                     </div>
                   </div>
                   
                   <div className="mt-auto">
-                    <div className="flex items-end gap-1.5 mb-2">
-                      <span className="font-bold text-[#006A4E] text-sm">
+                    <div className="flex items-end gap-1.5 mb-3">
+                      <span className="font-bold text-[#006A4E] text-base">
                         {book.type === 'donation' ? 'Free' : `${book.price}$`}
                       </span>
-                      {book.oldPrice && (
-                        <span className="text-[10px] text-red-400 line-through mb-0.5">
+                      {book.oldPrice ? (
+                        <span className="text-[10px] text-red-400 line-through mb-1">
                           {book.oldPrice}$
+                        </span>
+                      ) : (
+                        <span className="text-[10px] text-red-400 line-through mb-1">
+                          {(book.price * 1.5).toFixed(1)}$
                         </span>
                       )}
                     </div>
@@ -273,7 +331,7 @@ export default function SearchScreen() {
                         addToCart({ ...book, originalPrice: book.oldPrice || book.price * 1.5 });
                         navigate('/cart');
                       }}
-                      className="w-full bg-[#006A4E] text-white text-xs font-medium py-2 rounded-lg hover:bg-[#00523B] transition-colors"
+                      className="w-full bg-[#006A4E] text-white text-xs font-bold py-2.5 rounded-xl hover:bg-[#00523B] transition-colors shadow-sm active:scale-95 duration-200"
                     >
                       Add to Cart
                     </button>

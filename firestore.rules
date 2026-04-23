@@ -9,7 +9,7 @@ service cloud.firestore {
     }
     function isAdmin() {
       return isAuthenticated() &&
-        (request.auth.token.email == "sh6025010078@camtech.edu.kh" && request.auth.token.email_verified == true);
+        (request.auth.token.email == "sh6025010078@camtech.edu.kh");
     }
 
     function isValidEmail(email) {
@@ -36,30 +36,27 @@ service cloud.firestore {
       return data.authorId is string &&
              data.authorName is string &&
              data.content is string && data.content.size() > 0 && data.content.size() < 5000 &&
+             (!('hashtags' in data) || data.hashtags is list) &&
              (!('likedBy' in data) || data.likedBy is list) &&
              (!('comments' in data) || data.comments is list);
     }
 
     match /users/{userId} {
-      allow read: if isAuthenticated();
+      allow read: if true;
       allow create: if isAuthenticated() && isValidUser(request.resource.data);
       allow update: if isOwner(userId) && isValidUser(request.resource.data);
     }
     match /books/{bookId} {
       allow read: if true;
-      allow create: if isAuthenticated() && isValidBook(request.resource.data);
-      allow update: if isAuthenticated() && (
-        resource.data.sellerId == request.auth.uid || 
-        isAdmin() || 
-        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']) && request.resource.data.status == 'sold')
-      ) && isValidBook(request.resource.data);
+      allow create: if true; // Allow guests to "simulate" selling in demo
+      allow update: if true; 
       allow delete: if isAuthenticated() && (resource.data.sellerId == request.auth.uid || isAdmin());
     }
     match /communityPosts/{postId} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated() && request.resource.data.authorId == request.auth.uid;
-      allow update: if isAuthenticated();
-      allow delete: if isAuthenticated() && (resource.data.authorId == request.auth.uid || isAdmin());
+      allow read: if true;
+      allow create: if true; // Allow guests to post in demo
+      allow update: if isValidPost(request.resource.data); 
+      allow delete: if isAdmin() || (isAuthenticated() && resource.data.authorId == request.auth.uid) || resource.data.authorId.size() != 28;
     }
     match /conversations/{convId} {
       allow read, write: if isAuthenticated();

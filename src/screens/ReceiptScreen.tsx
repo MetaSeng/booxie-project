@@ -143,9 +143,9 @@ export default function ReceiptScreen() {
               </div>
             </div>
 
-            {/* Shipping Info */}
+            {/* Delivery Info */}
             <div className="bg-[#f9fafb] rounded-2xl p-4 mb-2">
-              <p className="text-[10px] text-[#9ca3af] uppercase font-bold tracking-wider mb-2">Shipping to</p>
+              <p className="text-[10px] text-[#9ca3af] uppercase font-bold tracking-wider mb-2">Delivery to</p>
               <p className="text-xs text-[#374151] font-medium leading-relaxed">
                 {shippingAddress.name}<br/>
                 {shippingAddress.phone}<br/>

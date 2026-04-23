@@ -10,9 +10,12 @@ export function isGeminiQuotaError(error: any): boolean {
     error?.message?.includes('quota') || 
     error?.message?.includes('RESOURCE_EXHAUSTED') ||
     error?.error?.code === 429 ||
+    error?.error?.message?.includes('quota') ||
     error?.error?.status === 'RESOURCE_EXHAUSTED' ||
     errorString.includes('429') ||
-    errorString.includes('RESOURCE_EXHAUSTED')
+    errorString.includes('RESOURCE_EXHAUSTED') ||
+    errorString.includes('quota exceeded') ||
+    errorString.includes('Rate limit reached')
   );
 }
 

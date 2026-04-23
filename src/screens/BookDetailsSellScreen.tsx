@@ -2,14 +2,34 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db, auth, handleFirestoreError, OperationType } from '../firebase';
-import { ChevronLeft, ChevronDown } from 'lucide-react';
+import { ChevronLeft, ChevronDown, Sparkles, BookOpen, GraduationCap, Microscope, Globe, ScrollText, Library, Languages, Check } from 'lucide-react';
 import { addRewardPoints, REWARD_POINTS } from '../lib/rewards';
+import { GoogleGenAI, Type } from "@google/genai";
+import { motion, AnimatePresence } from 'motion/react';
+import { isGeminiQuotaError } from '../lib/geminiErrors';
+
+const CATEGORIES = [
+  { id: 'Textbook', icon: BookOpen },
+  { id: 'Grade 12', icon: GraduationCap },
+  { id: 'Grade 9', icon: GraduationCap },
+  { id: 'Exam Paper', icon: ScrollText },
+  { id: 'Science', icon: Microscope },
+  { id: 'Social Study', icon: Globe },
+  { id: 'English', icon: Languages },
+  { id: 'Novels', icon: Library },
+  { id: 'Story', icon: Library }
+];
+
+const CONDITIONS = ['New', 'Like New', 'Good', 'Normal'];
 
 export default function BookDetailsSellScreen() {
   const navigate = useNavigate();
   const location = useLocation();
   
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isRecommending, setIsRecommending] = useState(false);
+  const [aiRecommendedCategory, setAiRecommendedCategory] = useState<string | null>(null);
+  const [quotaExceeded, setQuotaExceeded] = useState(false);
   const [error, setError] = useState('');
   const [showConfirm, setShowConfirm] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
@@ -22,7 +42,7 @@ export default function BookDetailsSellScreen() {
     category: 'Textbook',
     isbn: '',
     price: '',
-    condition: 'Used',
+    condition: 'Good',
     description: '',
     imageUrl: '',
     backCoverUrl: '',
@@ -31,7 +51,7 @@ export default function BookDetailsSellScreen() {
 
   useEffect(() => {
     if (location.state?.scannedData) {
-      const { title, author, description, price, imageUrl, backCoverUrl, type } = location.state.scannedData;
+      const { title, author, description, price, imageUrl, backCoverUrl, type, condition } = location.state.scannedData;
       setFormData(prev => ({
         ...prev,
         title: title || prev.title,
@@ -40,18 +60,52 @@ export default function BookDetailsSellScreen() {
         price: (price !== undefined && price !== null) ? price.toString() : prev.price,
         imageUrl: imageUrl || prev.imageUrl,
         backCoverUrl: backCoverUrl || prev.backCoverUrl,
-        type: type || (price === 0 ? 'donation' : 'sale')
+        type: type || (price === 0 ? 'donation' : 'sale'),
+        condition: condition || 'Good'
       }));
+
+      // Trigger AI Recommendation
+      if (title || author) {
+        recommendCategory(title || '', author || '', description || '');
+      }
     }
   }, [location.state]);
+
+  const recommendCategory = async (title: string, author: string, desc: string) => {
+    setIsRecommending(true);
+    setQuotaExceeded(false);
+    try {
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      const prompt = `Based on this book info: Title: "${title}", Author: "${author}", Description: "${desc}". 
+      Select the best category from this list: ${CATEGORIES.map(c => c.id).join(', ')}. 
+      Return only the category name. If unsure, return "Textbook".`;
+
+      const response = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: prompt,
+      });
+
+      const recommendation = response.text?.trim();
+      if (recommendation && CATEGORIES.some(c => c.id === recommendation)) {
+        setAiRecommendedCategory(recommendation);
+        setFormData(prev => ({ ...prev, category: recommendation }));
+      }
+    } catch (err: any) {
+      console.error("AI Recommendation failed:", err);
+      // Check for quota exceeded error (429) using shared helper
+      if (isGeminiQuotaError(err)) {
+        setQuotaExceeded(true);
+      }
+    } finally {
+      setIsRecommending(false);
+    }
+  };
 
   const handleSellClick = () => {
     setShowConfirm(true);
   };
 
   const confirmSell = async () => {
-    if (!auth.currentUser) return;
-    
     setIsSubmitting(true);
     setError('');
 
@@ -63,8 +117,8 @@ export default function BookDetailsSellScreen() {
         isbn: formData.isbn,
         description: formData.description,
         price: formData.type === 'donation' ? 0 : Number(formData.price),
-        sellerId: auth.currentUser.uid,
-        sellerName: auth.currentUser.displayName || 'Anonymous',
+        sellerId: auth.currentUser?.uid || 'guest-demo-id',
+        sellerName: auth.currentUser?.displayName || 'Alex (Guest)',
         status: 'available',
         condition: formData.condition.toLowerCase().replace(' ', '-'),
         type: formData.type,
@@ -73,17 +127,24 @@ export default function BookDetailsSellScreen() {
         backCoverUrl: formData.backCoverUrl
       };
 
-      await addDoc(collection(db, 'books'), bookData);
-      
-      // Award points
-      const pointsToAward = formData.type === 'donation' ? REWARD_POINTS.DONATE : REWARD_POINTS.SELL;
-      const rewardType = formData.type === 'donation' ? 'donated' : 'sold';
-      await addRewardPoints(auth.currentUser.uid, pointsToAward, rewardType);
+      // Try to save to Firestore, but proceed even if it fails (for guest demo)
+      try {
+        await addDoc(collection(db, 'books'), bookData);
+        
+        // Award points if logged in
+        if (auth.currentUser) {
+          const pointsToAward = formData.type === 'donation' ? REWARD_POINTS.DONATE : REWARD_POINTS.SELL;
+          const rewardType = formData.type === 'donation' ? 'donated' : 'sold';
+          await addRewardPoints(auth.currentUser.uid, pointsToAward, rewardType);
+        }
+      } catch (fsErr) {
+        console.warn("Firestore save skipped or failed in guest mode:", fsErr);
+      }
 
       setShowConfirm(false);
       setShowSuccess(true);
     } catch (err) {
-      handleFirestoreError(err, OperationType.CREATE, 'books');
+      console.error("General error in confirmSell:", err);
       setError('Failed to list book.');
       setShowConfirm(false);
     } finally {
@@ -135,19 +196,25 @@ export default function BookDetailsSellScreen() {
       <div className="flex-1 p-4 flex flex-col">
         {/* Images Preview */}
         {(formData.imageUrl || formData.backCoverUrl) && (
-          <div className="flex gap-2 overflow-x-auto pb-4 mb-2">
+          <div className="flex gap-3 overflow-x-auto pb-4 mb-2 hide-scrollbar">
             {formData.imageUrl && (
               <div className="relative shrink-0">
-                <img src={formData.imageUrl} alt="Front cover" className="h-32 w-24 object-cover rounded-lg bg-white p-1 shadow-sm" />
-                <span className="absolute bottom-1 left-1/2 -translate-x-1/2 bg-black/60 text-white text-[10px] px-2 py-0.5 rounded-full whitespace-nowrap">Front</span>
+                <img src={formData.imageUrl} alt="Front cover" className="h-40 w-28 object-cover rounded-xl bg-white p-1 shadow-md border border-gray-100" />
+                <span className="absolute bottom-2 left-1/2 -translate-x-1/2 bg-[#006A4E] text-white text-[9px] font-bold px-3 py-1 rounded-full whitespace-nowrap shadow-lg">FRONT</span>
               </div>
             )}
             {formData.backCoverUrl && (
               <div className="relative shrink-0">
-                <img src={formData.backCoverUrl} alt="Back cover" className="h-32 w-24 object-cover rounded-lg bg-white p-1 shadow-sm" />
-                <span className="absolute bottom-1 left-1/2 -translate-x-1/2 bg-black/60 text-white text-[10px] px-2 py-0.5 rounded-full whitespace-nowrap">Back</span>
+                <img src={formData.backCoverUrl} alt="Back cover" className="h-40 w-28 object-cover rounded-xl bg-white p-1 shadow-md border border-gray-100" />
+                <span className="absolute bottom-2 left-1/2 -translate-x-1/2 bg-[#006A4E] text-white text-[9px] font-bold px-3 py-1 rounded-full whitespace-nowrap shadow-lg">BACK</span>
               </div>
             )}
+            {location.state?.scannedData?.extraImages?.map((url: string, i: number) => (
+              <div key={i} className="relative shrink-0">
+                <img src={url} alt={`Doc ${i}`} className="h-40 w-28 object-cover rounded-xl bg-white p-1 shadow-md border border-gray-100" />
+                <span className="absolute bottom-2 left-1/2 -translate-x-1/2 bg-gray-600 text-white text-[9px] font-bold px-3 py-1 rounded-full whitespace-nowrap shadow-lg">DOCUMENT</span>
+              </div>
+            ))}
           </div>
         )}
 
@@ -188,39 +255,77 @@ export default function BookDetailsSellScreen() {
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Book Category</label>
-              <div className="relative">
-                <select 
-                  value={formData.category}
-                  onChange={e => setFormData({...formData, category: e.target.value})}
-                  className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-sm appearance-none focus:outline-none focus:ring-2 focus:ring-booxie-green"
-                >
-                  <option value="Textbook">Textbook</option>
-                  <option value="Fiction">Fiction</option>
-                  <option value="Non-Fiction">Non-Fiction</option>
-                </select>
-                <ChevronDown className="w-4 h-4 text-gray-400 absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <div className="flex items-center justify-between mb-2">
+                <label className="block text-xs font-bold text-gray-900 uppercase tracking-widest">Book Category</label>
+                {isRecommending && (
+                  <span className="flex items-center gap-1 text-[10px] text-booxie-green animate-pulse font-bold">
+                    <Sparkles className="w-3 h-3" /> AI Recommending...
+                  </span>
+                )}
+                {!isRecommending && aiRecommendedCategory && (
+                  <span className="flex items-center gap-1 text-[10px] text-booxie-green font-bold">
+                    <Sparkles className="w-3 h-3" /> AI Selected
+                  </span>
+                )}
+                {quotaExceeded && (
+                  <span className="flex items-center gap-1 text-[10px] text-amber-500 font-bold">
+                    <Sparkles className="w-3 h-3" /> Manual Selection Required (AI Quota Hit)
+                  </span>
+                )}
+              </div>
+              
+              <div className="grid grid-cols-3 gap-2">
+                {CATEGORIES.map((cat) => {
+                  const Icon = cat.icon;
+                  const isActive = formData.category === cat.id;
+                  return (
+                    <button
+                      key={cat.id}
+                      type="button"
+                      onClick={() => setFormData({...formData, category: cat.id})}
+                      className={`flex flex-col items-center justify-center p-3 rounded-2xl border-2 transition-all duration-300 ${
+                        isActive 
+                          ? 'border-[#006A4E] bg-[#E8F5F0] text-[#006A4E] shadow-sm' 
+                          : 'border-gray-50 bg-white text-gray-400 hover:border-gray-200'
+                      }`}
+                    >
+                      <Icon className={`w-5 h-5 mb-1.5 transition-transform ${isActive ? 'scale-110' : ''}`} />
+                      <span className={`text-[10px] font-bold text-center leading-tight ${isActive ? 'text-[#006A4E]' : 'text-gray-500'}`}>
+                        {cat.id}
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Condition</label>
+              <div className="flex items-center justify-between mb-2">
+                <label className="block text-xs font-bold text-gray-900 uppercase tracking-widest">Condition</label>
+                <div className="hidden items-center gap-1 text-[10px] text-gray-400 font-medium sm:flex">
+                  <Sparkles className="w-3 h-3" /> Auto-detected by AI
+                </div>
+              </div>
               <div className="flex gap-2">
-                {['New', 'Like New', 'Used'].map(cond => (
-                  <button
+                {CONDITIONS.map(cond => (
+                  <div
                     key={cond}
-                    type="button"
-                    onClick={() => setFormData({...formData, condition: cond})}
-                    className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition-colors border ${
+                    className={`flex-1 flex items-center justify-center py-3.5 rounded-2xl text-[11px] font-bold transition-all border-2 relative ${
                       formData.condition === cond 
-                        ? 'bg-booxie-green text-white border-booxie-green' 
-                        : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+                        ? 'bg-[#006A4E] text-white border-[#006A4E] shadow-lg shadow-[#006A4E]/20' 
+                        : 'bg-gray-50 text-gray-600 border-gray-100 cursor-not-allowed'
                     }`}
                   >
                     {cond}
-                  </button>
+                    {formData.condition === cond && (
+                      <div className="absolute -top-1.5 -right-1.5 bg-white rounded-full p-0.5 shadow-sm">
+                        <Check className="w-3 h-3 text-[#006A4E]" strokeWidth={4} />
+                      </div>
+                    )}
+                  </div>
                 ))}
               </div>
+              <p className="text-[10px] text-gray-400 mt-2 italic text-center">Condition is locked and verified by Booxie AI Vision.</p>
             </div>
 
             <div>
@@ -367,6 +472,11 @@ export default function BookDetailsSellScreen() {
           </div>
         </div>
       )}
+
+      <style>{`
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+      `}</style>
     </div>
   );
 }

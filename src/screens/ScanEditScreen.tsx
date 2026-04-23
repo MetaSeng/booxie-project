@@ -19,6 +19,7 @@ export default function ScanEditScreen() {
           ...frontCoverData,
           imageUrl: images[0],
           backCoverUrl: images.length > 1 ? images[1] : undefined,
+          extraImages: images.slice(2)
         }
       }
     });
@@ -140,6 +141,33 @@ export default function ScanEditScreen() {
         </div>
       </div>
 
+      {/* Thumbnail Filmstrip */}
+      <div className="px-6 py-4 flex gap-3 overflow-x-auto hide-scrollbar shrink-0 bg-white/50 border-y border-gray-100">
+        {images.map((img, idx) => (
+          <button
+            key={idx}
+            onClick={() => setCurrentIndex(idx)}
+            className={`relative shrink-0 w-16 aspect-[3/4] rounded-lg overflow-hidden border-2 transition-all ${
+              currentIndex === idx ? 'border-booxie-green ring-2 ring-booxie-green/20' : 'border-transparent'
+            }`}
+          >
+            <img src={img} alt={`Thumb ${idx}`} className="w-full h-full object-cover" />
+            <span className="absolute bottom-1 left-1 bg-black/60 text-white text-[8px] px-1.5 py-0.5 rounded-md font-bold">
+              {idx === 0 ? 'FRONT' : idx === 1 ? 'BACK' : 'DOC'}
+            </span>
+          </button>
+        ))}
+        {images.length < 3 && (
+          <button 
+            onClick={() => navigate('/sell')}
+            className="shrink-0 w-16 aspect-[3/4] rounded-lg border-2 border-dashed border-gray-300 flex flex-col items-center justify-center gap-1 text-gray-400 hover:border-booxie-green hover:text-booxie-green transition-all"
+          >
+            <Camera className="w-5 h-5" />
+            <span className="text-[8px] font-bold">ADD</span>
+          </button>
+        )}
+      </div>
+
       {/* Bottom Tools */}
       <div className="bg-white px-6 py-4 pb-safe flex items-center justify-between shadow-[0_-4px_10px_rgba(0,0,0,0.05)] shrink-0">
         <button onClick={handleRetake} className="flex flex-col items-center gap-1 text-gray-600 hover:text-booxie-green transition-colors">
@@ -169,6 +197,11 @@ export default function ScanEditScreen() {
           <Check className="w-6 h-6" />
         </button>
       </div>
+      
+      <style>{`
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+      `}</style>
     </div>
   );
 }

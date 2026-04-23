@@ -1,44 +1,52 @@
-import React, { useState, useRef, useCallback, useEffect } from 'react';
+import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Webcam from 'react-webcam';
 import { getGeminiAI } from '../lib/gemini';
-import { Loader2, X } from 'lucide-react';
+import { Loader2, X, ReceiptText, FileText, Book, BookOpen, FileSearch, Image as ImageIcon, Check } from 'lucide-react';
 import { isGeminiQuotaError } from '../lib/geminiErrors';
+import { motion, AnimatePresence } from 'motion/react';
 
-const BankInvoiceIcon = () => (
-  <svg width="24" height="32" viewBox="0 0 24 32" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="opacity-80">
-    <rect x="3" y="2" width="18" height="28" rx="2" />
-    <line x1="7" y1="10" x2="17" y2="10" />
-    <line x1="7" y1="16" x2="17" y2="16" />
-    <line x1="7" y1="22" x2="13" y2="22" />
-  </svg>
-);
-
-const FrontCoverIcon = () => (
-  <svg width="24" height="32" viewBox="0 0 24 32" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="opacity-80">
-    <rect x="3" y="2" width="18" height="28" rx="2" />
-    <line x1="7" y1="2" x2="7" y2="30" />
-  </svg>
-);
-
-const BackCoverIcon = () => (
-  <svg width="24" height="32" viewBox="0 0 24 32" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="opacity-80">
-    <rect x="3" y="2" width="18" height="28" rx="2" />
-    <line x1="17" y1="2" x2="17" y2="30" />
-  </svg>
-);
+const SCAN_TYPES = [
+  { id: 'Front Cover', icon: Book, priority: 'priority' },
+  { id: 'Back Cover', icon: BookOpen, priority: 'priority' },
+  { id: 'Receipt', icon: ReceiptText, priority: 'optional' },
+  { id: 'Bank Invoice', icon: FileText, priority: 'optional' },
+  { id: 'Website Page', icon: FileSearch, priority: 'optional' },
+];
 
 export default function SellScreen() {
   const navigate = useNavigate();
   const webcamRef = useRef<Webcam>(null);
   const isScanningRef = useRef(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
   
   const [isScanning, setIsScanning] = useState(false);
   const [error, setError] = useState('');
   const [activeTab, setActiveTab] = useState('Front Cover');
   const [listingType, setListingType] = useState<'sale' | 'donation'>('sale');
   const [frontCoverData, setFrontCoverData] = useState<any>(null);
+  const [frontCoverImage, setFrontCoverImage] = useState<string | null>(null);
+  const [backCoverImage, setBackCoverImage] = useState<string | null>(null);
+  const [receiptImage, setReceiptImage] = useState<string | null>(null);
+  
+  const frontCoverRef = useRef<string | null>(null);
+  const backCoverRef = useRef<string | null>(null);
+  const receiptRef = useRef<string | null>(null);
+  const [autoScanEnabled, setAutoScanEnabled] = useState(true);
 
+  // Get active index for dynamic layout
+  const activeIndex = useMemo(() => SCAN_TYPES.findIndex(t => t.id === activeTab), [activeTab]);
+
+  const getImageForType = (typeId: string) => {
+    switch (typeId) {
+      case 'Front Cover': return frontCoverImage;
+      case 'Back Cover': return backCoverImage;
+      case 'Receipt': return receiptImage;
+      default: return null;
+    }
+  };
+
+  // Sync front cover data with listing type
   useEffect(() => {
     if (frontCoverData) {
       setFrontCoverData((prev: any) => ({
@@ -48,9 +56,20 @@ export default function SellScreen() {
       }));
     }
   }, [listingType]);
-  const [frontCoverImage, setFrontCoverImage] = useState<string | null>(null);
-  const [backCoverImage, setBackCoverImage] = useState<string | null>(null);
-  const [autoScanEnabled, setAutoScanEnabled] = useState(true);
+
+  // Center the active tab on mount or change
+  useEffect(() => {
+    const container = scrollRef.current;
+    if (container && activeIndex !== -1) {
+      const cardWidth = 96; // (W=80 + gap-4=16) -> 96
+      const scrollPos = (activeIndex * cardWidth) - (container.offsetWidth / 2) + (cardWidth / 2);
+      
+      container.scrollTo({ 
+        left: scrollPos, 
+        behavior: container.scrollLeft === 0 ? 'auto' : 'smooth' 
+      });
+    }
+  }, [activeIndex]);
 
   const captureAndAnalyze = useCallback(async (isManual = false) => {
     if (isScanningRef.current || !webcamRef.current) return;
@@ -65,26 +84,22 @@ export default function SellScreen() {
     const base64String = imageSrc.split(',')[1];
     
     try {
-      if (activeTab === 'Front Cover') {
-        const ai = getGeminiAI();
-        if (!ai) {
-          setFrontCoverData({
-            detected: true,
-            title: 'Sample Book Title',
-            author: 'Sample Author',
-            description: 'AI assistant not configured. Using sample data.',
-            price: 5.00
-          });
+      const ai = getGeminiAI();
+      if (!ai) {
+        // Fallback for demo when no key is present
+        if (isManual) {
           setFrontCoverImage(imageSrc);
           setActiveTab('Back Cover');
-          setError('AI assistant not configured. Using sample data.');
-          return;
         }
+        return;
+      }
+
+      if (activeTab === 'Front Cover') {
         const response = await ai.models.generateContent({
-          model: 'gemini-3.1-flash-lite-preview',
+          model: 'gemini-3-flash-preview',
           contents: {
             parts: [
-              { text: 'Analyze this image. If there is a clear book cover, extract the book title and author. Then provide a brief description. Since this is a secondhand book, recommend a lower price between 3 and 9 USD. Return ONLY a valid JSON object with keys: "detected" (boolean), "title" (string), "author" (string), "description" (string), and "price" (number). If no clear book cover is found, return {"detected": false}. Do not include markdown formatting or any text outside the JSON.' },
+              { text: 'Analyze this camera frame. Is there a clear Book FRONT COVER visible? If yes, extract: title, author, description, and suggested price (3-9 USD). Return ONLY a JSON object: {"detected": boolean, "title": string, "author": string, "description": string, "price": number}. If no definite book front cover is visible, return {"detected": false}.' },
               { inlineData: { data: base64String, mimeType: 'image/jpeg' } }
             ]
           }
@@ -95,40 +110,30 @@ export default function SellScreen() {
         
         try {
           const data = JSON.parse(text);
-          if (data.detected || isManual) {
-            const finalData = {
+          if (data.detected) {
+            setFrontCoverData({
               ...data,
               type: listingType,
               price: listingType === 'donation' ? 0 : data.price
-            };
-            setFrontCoverData(finalData);
+            });
             setFrontCoverImage(imageSrc);
-            setActiveTab('Back Cover');
+            frontCoverRef.current = imageSrc;
+            // Smooth 2026 UX transition
+            setTimeout(() => {
+              setActiveTab('Back Cover');
+            }, 1000);
           } else if (isManual) {
-             setError('No book cover detected. Please try again.');
+            setError('No book front cover detected. Please ensure the book is in focus.');
           }
-        } catch (parseError) {
-          console.error("JSON Parse Error:", text);
-          if (isManual) setError('Failed to understand the scan. Please try again.');
+        } catch (e) {
+          if (isManual) setError('AI processing failed. Please try again.');
         }
       } else if (activeTab === 'Back Cover') {
-        const ai = getGeminiAI();
-        if (!ai) {
-          setBackCoverImage(imageSrc);
-          setAutoScanEnabled(false);
-          navigate('/sell/edit', { 
-            state: { 
-              images: [frontCoverImage, imageSrc].filter(Boolean),
-              frontCoverData 
-            } 
-          });
-          return;
-        }
         const response = await ai.models.generateContent({
-          model: 'gemini-3.1-flash-lite-preview',
+          model: 'gemini-3-flash-preview',
           contents: {
             parts: [
-              { text: 'Analyze this image. If it is a back cover of a book (often containing a barcode, blurb, or ISBN), return ONLY a valid JSON object with {"detected": true}. Otherwise return {"detected": false}. Do not include markdown formatting or any text outside the JSON.' },
+              { text: 'Analyze this camera frame. Is there a clear Book BACK COVER or back page visible? Return ONLY a JSON object: {"detected": boolean}. If no clear back cover is visible, return {"detected": false}.' },
               { inlineData: { data: base64String, mimeType: 'image/jpeg' } }
             ]
           }
@@ -139,117 +144,78 @@ export default function SellScreen() {
         
         try {
           const data = JSON.parse(text);
-          if (data.detected || isManual) {
+          if (data.detected) {
             setBackCoverImage(imageSrc);
-            setAutoScanEnabled(false);
-            
-            navigate('/sell/edit', { 
-              state: { 
-                images: [frontCoverImage, imageSrc].filter(Boolean),
-                frontCoverData 
-              } 
-            });
+            backCoverRef.current = imageSrc;
+            setTimeout(() => {
+              navigate('/sell/edit', { 
+                state: { 
+                  images: [frontCoverRef.current, imageSrc, receiptRef.current].filter(Boolean), 
+                  frontCoverData 
+                } 
+              });
+            }, 1500); 
           } else if (isManual) {
-             setError('No back cover detected. Please try again.');
+            setError('No book back cover detected. Please flip the book.');
           }
-        } catch (parseError) {
-          console.error("JSON Parse Error:", text);
-          if (isManual) setError('Failed to understand the scan. Please try again.');
+        } catch (e) {
+          if (isManual) setError('Verification failed. Try again.');
         }
+      } else if (activeTab === 'Receipt') {
+        setReceiptImage(imageSrc);
+        receiptRef.current = imageSrc;
       }
     } catch (err: any) {
       console.error(err);
       if (isGeminiQuotaError(err)) {
         setAutoScanEnabled(false);
-        if (isManual) {
-          // Fallback for manual capture when quota is exceeded
-          if (activeTab === 'Front Cover') {
-            setFrontCoverData({
-              detected: true,
-              title: 'Sample Book Title',
-              author: 'Sample Author',
-              description: 'This is a sample description because AI quota was exceeded.',
-              price: 5.00
-            });
-            setFrontCoverImage(imageSrc);
-            setActiveTab('Back Cover');
-            setError('AI quota exceeded. Using sample data.');
-          } else if (activeTab === 'Back Cover') {
-            setBackCoverImage(imageSrc);
-            navigate('/sell/edit', { 
-              state: { 
-                images: [frontCoverImage, imageSrc].filter(Boolean),
-                frontCoverData 
-              } 
-            });
-          }
-        } else {
-          setError('AI quota exceeded. Auto-scan disabled. Please use manual capture.');
-        }
+        setError('Gemini API quota exceeded. Please try again in 1 minute or use a different network.');
       } else if (isManual) {
-        setError('Failed to scan. Please try again.');
+        setError('Failed to scan. Please try again with better lighting.');
       }
     } finally {
       isScanningRef.current = false;
       setIsScanning(false);
     }
-  }, [activeTab, frontCoverData, frontCoverImage, navigate]);
+  }, [activeTab, frontCoverData, frontCoverImage, receiptImage, listingType, navigate]);
 
   useEffect(() => {
     let timeoutId: NodeJS.Timeout;
-    let isMounted = true;
-
     const runAutoScan = async () => {
-      if (!autoScanEnabled || activeTab === 'Bank Invoice') {
-        if (isMounted) timeoutId = setTimeout(runAutoScan, 1000);
-        return;
-      }
-
-      await captureAndAnalyze();
-      
-      if (isMounted) {
-        // Increase interval to 10 seconds to avoid quota issues
-        timeoutId = setTimeout(runAutoScan, 10000);
+      if (!autoScanEnabled) return;
+      if (activeTab === 'Front Cover' || activeTab === 'Back Cover') {
+        await captureAndAnalyze();
+        timeoutId = setTimeout(runAutoScan, 8000); // 8s interval for AI detection
       }
     };
-
     runAutoScan();
-
-    return () => {
-      isMounted = false;
-      clearTimeout(timeoutId);
-    };
+    return () => clearTimeout(timeoutId);
   }, [autoScanEnabled, activeTab, captureAndAnalyze]);
 
-  const handleManualCapture = () => {
-    captureAndAnalyze(true);
-  };
-
-  const handleDone = () => {
-    navigate('/');
-  };
+  const handleManualCapture = () => captureAndAnalyze(true);
+  const handleDone = () => navigate('/');
 
   return (
-    <div className="fixed inset-0 bg-[#1A8765] z-50 flex flex-col font-sans overflow-hidden">
+    <div className="fixed inset-0 bg-[#1A8765] z-50 flex flex-col font-sans overflow-hidden text-white">
       {/* Header */}
-      <div className="pt-12 pb-4 px-6 flex justify-between items-center z-10">
-        <div className="flex bg-white/10 backdrop-blur-md rounded-lg p-1">
+      <div className="pt-12 pb-4 px-6 flex justify-between items-center z-50 relative">
+        <div className="flex bg-white/10 backdrop-blur-xl rounded-2xl p-1 shadow-xl border border-white/10">
           <button 
             onClick={() => setListingType('sale')}
-            className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all ${
+            className={`px-7 py-2 rounded-xl text-xs font-bold transition-all duration-300 ${
               listingType === 'sale' 
-                ? 'bg-white text-[#1A8765] shadow-sm' 
-                : 'text-white hover:bg-white/10'
+                ? 'bg-white text-[#1A8765] shadow-lg scale-105' 
+                : 'text-white/80 hover:text-white hover:bg-white/5'
             }`}
           >
             SELL
           </button>
           <button 
             onClick={() => setListingType('donation')}
-            className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all ${
+            className={`px-7 py-2 rounded-xl text-xs font-bold transition-all duration-300 ${
               listingType === 'donation' 
-                ? 'bg-white text-[#1A8765] shadow-sm' 
-                : 'text-white hover:bg-white/10'
+                ? 'bg-white text-[#1A8765] shadow-lg scale-105' 
+                : 'text-white/80 hover:text-white hover:bg-white/5'
             }`}
           >
             DONATE
@@ -257,148 +223,169 @@ export default function SellScreen() {
         </div>
         <button 
           onClick={handleDone}
-          className="px-4 py-1.5 border border-white/50 rounded-lg text-white text-sm font-medium hover:bg-white/10 transition-colors"
+          className="px-6 py-2 bg-white/10 backdrop-blur-md border border-white/30 rounded-xl text-white text-sm font-bold hover:bg-white/20 transition-all active:scale-95 shadow-lg"
         >
           Done
         </button>
       </div>
 
-      {/* Top Message */}
-      <div className="absolute top-24 left-0 right-0 flex justify-center z-20 pointer-events-none">
-        {activeTab === 'Back Cover' && (
-          <div className="bg-[#2A9D7A] text-white px-6 py-2 rounded-full shadow-lg font-medium text-sm animate-bounce">
-            Front cover scanned! Now scan the back cover.
+      {/* Main Content Area */}
+      <div className="flex-1 relative flex flex-col items-center justify-center min-h-0 px-6">
+        {/* Scanning Box */}
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="relative w-full aspect-[9/18] max-w-sm rounded-[50px] overflow-hidden shadow-[0_40px_100px_rgba(0,0,0,0.5)] border border-white/10 bg-black/20"
+        >
+          <Webcam
+            audio={false}
+            ref={webcamRef}
+            screenshotFormat="image/jpeg"
+            videoConstraints={{ facingMode: "environment" }}
+            className="w-full h-full object-cover"
+          />
+          
+          {/* Corner Brackets */}
+          <div className="absolute inset-0 pointer-events-none">
+            <div className="absolute top-10 left-10 w-16 h-16 border-t-[5px] border-l-[5px] border-white rounded-tl-[32px] opacity-90"></div>
+            <div className="absolute top-10 right-10 w-16 h-16 border-t-[5px] border-r-[5px] border-white rounded-tr-[32px] opacity-90"></div>
+            <div className="absolute bottom-10 left-10 w-16 h-16 border-b-[5px] border-l-[5px] border-white rounded-bl-[32px] opacity-90"></div>
+            <div className="absolute bottom-10 right-10 w-16 h-16 border-b-[5px] border-r-[5px] border-white rounded-br-[32px] opacity-90"></div>
           </div>
+
+          <AnimatePresence>
+            {isScanning && (
+              <motion.div 
+                initial={{ opacity: 0, y: -20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                className="absolute top-6 left-1/2 -translate-x-1/2 bg-black/60 backdrop-blur-xl text-white px-6 py-2.5 rounded-full flex items-center gap-3 text-sm font-bold shadow-2xl border border-white/20"
+              >
+                <Loader2 className="w-4 h-4 animate-spin text-[#32B38B]" />
+                <span>Scanning {activeTab}...</span>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </motion.div>
+
+        {error && (
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mt-6 bg-red-500 text-white px-6 py-3 rounded-2xl text-[11px] font-black uppercase tracking-wider text-center shadow-2xl border border-red-400 max-w-xs z-50"
+          >
+            {error}
+            <button onClick={() => setError('')} className="ml-4 text-white/60 hover:text-white transition-colors">✕</button>
+          </motion.div>
         )}
       </div>
 
-      {/* Camera Area */}
-      <div className="flex-1 relative flex items-center justify-center px-6 min-h-0">
-        <div className="relative w-full h-full max-h-[60vh] max-w-sm rounded-3xl overflow-hidden shadow-2xl">
-          {activeTab === 'Back Cover' && backCoverImage ? (
-            <img src={backCoverImage} alt="Back Cover" className="w-full h-full object-cover" />
-          ) : activeTab === 'Front Cover' && frontCoverImage ? (
-            <img src={frontCoverImage} alt="Front Cover" className="w-full h-full object-cover" />
-          ) : (
-            <Webcam
-              audio={false}
-              ref={webcamRef}
-              screenshotFormat="image/jpeg"
-              videoConstraints={{ facingMode: "environment" }}
-              className="w-full h-full object-cover"
-            />
-          )}
-          
-          {/* Scanning Overlay */}
-          <div className="absolute inset-0 border-4 border-white/30 rounded-3xl pointer-events-none">
-            {/* Corner brackets */}
-            <div className="absolute top-8 left-8 w-12 h-12 border-t-4 border-l-4 border-white rounded-tl-2xl"></div>
-            <div className="absolute top-8 right-8 w-12 h-12 border-t-4 border-r-4 border-white rounded-tr-2xl"></div>
-            <div className="absolute bottom-8 left-8 w-12 h-12 border-b-4 border-l-4 border-white rounded-bl-2xl"></div>
-            <div className="absolute bottom-8 right-8 w-12 h-12 border-b-4 border-r-4 border-white rounded-br-2xl"></div>
-          </div>
-
-          {isScanning && (
-            <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-black/60 text-white px-4 py-1.5 rounded-full flex items-center gap-2 text-sm backdrop-blur-md">
-              <Loader2 className="w-4 h-4 animate-spin" />
-              <span>Auto-scanning {activeTab.toLowerCase()}...</span>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {error && (
-        <div className="absolute top-32 left-6 right-6 bg-red-500 text-white p-3 rounded-xl text-sm font-medium text-center shadow-lg z-20">
-          {error}
-          <button onClick={() => setError('')} className="absolute right-3 top-1/2 -translate-y-1/2">
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-      )}
-
-      {/* Bottom Controls */}
-      <div className="pb-8 pt-4 px-4 z-10 shrink-0 relative overflow-hidden">
-        {/* Arc Background/Container for Buttons */}
-        <div className="absolute top-10 left-1/2 -translate-x-1/2 w-[150%] h-[200px] rounded-[50%] border-t border-white/10 pointer-events-none"></div>
-        
-        {/* Scan Options */}
-        <div className="flex gap-1.5 pb-8 justify-center relative z-10 h-32 items-end">
-          {['Bank Invoice', 'Front Cover', 'Back Cover'].map((tab, index) => {
-            // Calculate rotation for arc effect
-            const rotation = index === 0 ? '-rotate-12 translate-y-2' : index === 2 ? 'rotate-12 translate-y-2' : '-translate-y-2';
+      {/* Bottom Interface */}
+      <div className="relative pb-10 pt-4 shrink-0 overflow-hidden bg-gradient-to-t from-black/20 to-transparent">
+        {/* Carousel Area */}
+        <div 
+          ref={scrollRef}
+          className="flex overflow-x-auto hide-scrollbar snap-x snap-mandatory gap-4 px-[40%] py-6 h-52 items-center relative z-10"
+        >
+          {SCAN_TYPES.map((type, index) => {
+            const isActive = activeTab === type.id;
+            const diff = index - activeIndex;
+            const Icon = type.icon;
+            const scannedImage = getImageForType(type.id);
             
+            // Animation values based on proximity to center
+            const scale = isActive ? 1.25 : 0.85;
+            const opacity = isActive ? 1 : 0.4;
+            const brightness = isActive ? 'brightness(1.1)' : 'brightness(0.7)';
+            const zIndex = isActive ? 50 : 50 - Math.abs(diff);
+
             return (
-              <button
-                key={tab}
-                onClick={() => setActiveTab(tab)}
-                className={`relative shrink-0 w-[90px] h-[100px] transition-all flex flex-col items-center justify-center gap-1.5 transform ${rotation} ${
-                  activeTab === tab 
-                    ? 'text-white scale-105 z-20' 
-                    : 'text-white/70 hover:text-white z-10'
+              <motion.button
+                key={type.id}
+                onClick={() => setActiveTab(type.id)}
+                whileTap={{ scale: 0.95 }}
+                animate={{
+                  scale,
+                  opacity,
+                  filter: brightness,
+                  zIndex,
+                  x: diff * 8, // Ultra-compact perspective
+                }}
+                transition={{ 
+                  duration: 0.4, 
+                  ease: "easeInOut"
+                }}
+                className={`snap-center shrink-0 w-16 h-24 flex flex-col items-center justify-center gap-1.5 relative rounded-[22px] border transition-all duration-300 ${
+                  isActive 
+                    ? 'bg-white/90 backdrop-blur-md border-white shadow-[0_12px_30px_rgba(0,0,0,0.3)]' 
+                    : 'bg-white/5 border-white/5'
                 }`}
               >
-                {/* Quadrilateral Shape Background */}
-                <div className={`absolute inset-0 rounded-2xl border transition-colors ${
-                  activeTab === tab ? 'bg-[#2A9D7A] border-white/40 shadow-lg' : 'bg-[#1A8765] border-white/20'
-                }`} style={{ transform: 'perspective(100px) rotateX(-5deg)', transformOrigin: 'bottom' }}></div>
-                
-                {/* Content */}
-                <div className="relative z-10 flex flex-col items-center gap-1.5">
-                  {tab === 'Bank Invoice' && <BankInvoiceIcon />}
-                  {tab === 'Front Cover' && <FrontCoverIcon />}
-                  {tab === 'Back Cover' && <BackCoverIcon />}
-                  <span className="text-[9px] font-medium whitespace-nowrap">{tab}</span>
+                {/* Foreground Content */}
+                <div className="relative z-10 flex flex-col items-center gap-1.5 w-full h-full p-1.5">
+                  <div className={`w-full h-[70%] rounded-[16px] flex items-center justify-center overflow-hidden transition-colors ${
+                    isActive ? 'bg-[#E8F5F0]' : 'bg-black/5'
+                  }`}>
+                    {scannedImage ? (
+                      <img src={scannedImage} alt="Thumbnail" className="w-full h-full object-cover" />
+                    ) : (
+                      <Icon className={`w-4 h-4 transition-colors ${isActive ? 'text-[#1A8765]' : 'text-white/60'}`} />
+                    )}
+                  </div>
+                  <span className={`text-[6px] font-black text-center leading-tight uppercase tracking-[0.1em] transition-colors ${
+                    isActive ? 'text-[#1A8765]' : 'text-white/40'
+                  }`}>
+                    {type.id === 'Website Page' ? 'Web' : type.id.split(' ')[0]}
+                  </span>
                 </div>
-              </button>
+
+                {/* Priority Indicator */}
+                {type.priority === 'priority' && !scannedImage && (
+                  <div className={`absolute top-2 right-2 w-2 h-2 rounded-full ${isActive ? 'bg-amber-400' : 'bg-amber-400/50'} shadow-lg`} />
+                )}
+                {scannedImage && (
+                  <div className="absolute top-2 right-2 bg-[#1A8765] rounded-full p-0.5 shadow-lg">
+                    <Check className="w-2.5 h-2.5 text-white" />
+                  </div>
+                )}
+              </motion.button>
             );
           })}
         </div>
 
-        {/* Capture Area */}
-        <div className="flex justify-center items-center mt-2 mb-4 relative">
-          {/* Squircle Edit Button */}
-          <div className="absolute left-8">
-            <button 
-              onClick={() => navigate('/sell/edit', { 
-                state: { 
-                  images: [frontCoverImage, backCoverImage].filter(Boolean),
-                  frontCoverData 
-                } 
-              })}
-              className="w-14 h-14 bg-[#2A9D7A] border border-white/30 text-white shadow-lg flex items-center justify-center overflow-hidden hover:bg-[#32B38B] transition-colors"
-              style={{ borderRadius: '18px' }} // Squircle approximation
-            >
-              {frontCoverImage ? (
-                <img src={frontCoverImage} alt="Preview" className="w-full h-full object-cover" />
-              ) : (
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-                  <circle cx="8.5" cy="8.5" r="1.5"></circle>
-                  <polyline points="21 15 16 10 5 21"></polyline>
-                </svg>
-              )}
-            </button>
-          </div>
+        {/* Action Controls */}
+        <div className="flex justify-center items-center gap-10 mt-2 px-10 relative z-10">
+          <div className="w-14 h-14" /> {/* Spacer */}
 
-          {/* Capture Button */}
-          <button 
+          <motion.button 
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
             onClick={handleManualCapture}
             disabled={isScanning}
-            className="w-20 h-20 rounded-full border-[3px] border-white flex items-center justify-center hover:scale-105 active:scale-95 transition-transform disabled:opacity-50 disabled:hover:scale-100 bg-transparent p-1 z-10"
+            className="relative w-20 h-20 rounded-full border-[5px] border-white/40 flex items-center justify-center p-1 group"
           >
-            <div className="w-full h-full bg-white rounded-full shadow-lg"></div>
-          </button>
+            <div className="w-full h-full bg-white rounded-full shadow-[0_0_30px_rgba(255,255,255,0.4)] group-active:scale-95 transition-transform" />
+            <div className="absolute inset-2 border-2 border-[#1A8765]/20 rounded-full" />
+          </motion.button>
+
+          <motion.button 
+            whileTap={{ scale: 0.9 }}
+            onClick={() => navigate('/sell/edit', { 
+              state: { 
+                images: [frontCoverRef.current, backCoverRef.current, receiptRef.current].filter(Boolean), 
+                frontCoverData 
+              } 
+            })}
+            className="w-14 h-14 bg-white text-[#1A8765] rounded-2xl flex items-center justify-center shadow-2xl font-bold text-xs"
+          >
+            NEXT
+          </motion.button>
         </div>
       </div>
       
       <style>{`
-        .hide-scrollbar::-webkit-scrollbar {
-          display: none;
-        }
-        .hide-scrollbar {
-          -ms-overflow-style: none;
-          scrollbar-width: none;
-        }
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
       `}</style>
     </div>
   );

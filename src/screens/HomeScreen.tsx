@@ -3,8 +3,9 @@ import { collection, query, onSnapshot, where, doc, getDoc, setDoc, deleteDoc, o
 import { db, handleFirestoreError, OperationType } from '../firebase';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
-import { BookOpen, Search, Heart, Star, ChevronRight, MessageCircle, Sparkles, Loader2 } from 'lucide-react';
+import { BookOpen, Search, Heart, Star, ChevronRight, MessageCircle, Loader2, Filter, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { motion, AnimatePresence } from 'motion/react';
 
 interface BookListing {
   id: string;
@@ -20,17 +21,18 @@ interface BookListing {
 }
 
 const CATEGORIES = [
-  { id: 'printed', label: 'Printed books', icon: 'https://lh3.googleusercontent.com/d/1gBac4HB_fvzjXfK9d7hW0baFjuqbSz9u' },
-  { id: 'english', label: 'English books', icon: 'https://lh3.googleusercontent.com/d/1AmUQyGxG0RePF4kwfeqvPJOt2EOeFi5S' },
-  { id: 'diploma', label: 'Diploma 9', icon: 'https://lh3.googleusercontent.com/d/18Aj2zUXaHnZeWcZomnLlWqSo_wq3GslT' },
-  { id: 'exam', label: 'Exam subjects', icon: 'https://lh3.googleusercontent.com/d/1J4KjM6YwRr0RDuazZ6Qyirp37ZQ9hVIl' },
-  { id: 'fiction', label: 'Fiction Book', icon: 'https://lh3.googleusercontent.com/d/1bPAh10cr4W4jNkilGR_yKNCnFuifT_4B' },
-  { id: 'donation', label: 'Donation', icon: 'https://cdn-icons-png.flaticon.com/512/4213/4213625.png' },
+  { id: 'All', label: 'All', icon: 'https://cdn-icons-png.flaticon.com/512/1048/1048927.png' },
+  { id: 'Textbook', label: 'Textbooks', icon: 'https://lh3.googleusercontent.com/d/1gBac4HB_fvzjXfK9d7hW0baFjuqbSz9u' },
+  { id: 'English', label: 'English', icon: 'https://lh3.googleusercontent.com/d/1AmUQyGxG0RePF4kwfeqvPJOt2EOeFi5S' },
+  { id: 'Science', label: 'Science', icon: 'https://lh3.googleusercontent.com/d/1J4KjM6YwRr0RDuazZ6Qyirp37ZQ9hVIl' },
+  { id: 'Novels', label: 'Novels', icon: 'https://lh3.googleusercontent.com/d/1bPAh10cr4W4jNkilGR_yKNCnFuifT_4B' },
+  { id: 'Grade 12', label: 'Grade 12', icon: 'https://lh3.googleusercontent.com/d/18Aj2zUXaHnZeWcZomnLlWqSo_wq3GslT' },
 ];
 
 export default function HomeScreen() {
   const [books, setBooks] = useState<BookListing[]>([]);
   const [favorites, setFavorites] = useState<string[]>([]);
+  const [selectedGenre, setSelectedGenre] = useState('All');
   const { user } = useAuth();
   const { addToCart } = useCart();
   const navigate = useNavigate();
@@ -55,6 +57,7 @@ export default function HomeScreen() {
     let q = query(
       collection(db, 'books'),
       where('status', '==', 'available'),
+      ...(selectedGenre !== 'All' ? [where('category', '==', selectedGenre)] : []),
       orderBy('createdAt', 'desc'),
       limit(6)
     );
@@ -71,7 +74,7 @@ export default function HomeScreen() {
     });
 
     return () => unsubscribe();
-  }, [user]);
+  }, [user, selectedGenre]);
 
   const toggleFavorite = async (e: React.MouseEvent, bookId: string) => {
     e.stopPropagation();
@@ -128,100 +131,123 @@ export default function HomeScreen() {
         </div>
       </div>
 
-      {/* Book Categories */}
+      {/* Book Categories Filter */}
       <div className="mb-8">
         <div className="flex justify-between items-center mb-4">
-          <h3 className="font-bold text-gray-900">Book categories</h3>
+          <h3 className="font-bold text-gray-900">Top Categories</h3>
           <button onClick={() => navigate('/search')} className="text-[#006A4E] text-sm font-medium">View all</button>
         </div>
         <div className="flex gap-4 overflow-x-auto pb-2 no-scrollbar -mx-4 px-4 scroll-smooth">
           {CATEGORIES.map(cat => (
             <div 
               key={cat.id} 
-              onClick={() => cat.id === 'donation' ? navigate('/donations') : navigate('/search')}
-              className="flex flex-col items-center gap-2 min-w-[72px] cursor-pointer shrink-0"
+              onClick={() => setSelectedGenre(cat.id)}
+              className="flex flex-col items-center gap-2 min-w-[72px] cursor-pointer shrink-0 transition-transform active:scale-95"
             >
-              <div className="w-16 h-16 rounded-full border border-gray-200 bg-white flex items-center justify-center overflow-hidden shadow-sm hover:border-[#006A4E] transition-colors p-2">
+              <div className={`w-16 h-16 rounded-full border flex items-center justify-center overflow-hidden shadow-sm transition-all p-2 ${
+                selectedGenre === cat.id ? 'border-booxie-green bg-booxie-green/5 ring-4 ring-booxie-green/10' : 'border-gray-200 bg-white hover:border-[#006A4E]'
+              }`}>
                 <img src={cat.icon} alt={cat.label} className="w-full h-full object-contain" />
               </div>
-              <span className="text-[11px] text-gray-700 text-center leading-tight font-medium">{cat.label}</span>
+              <span className={`text-[11px] text-center leading-tight font-medium ${
+                selectedGenre === cat.id ? 'text-booxie-green font-bold' : 'text-gray-700'
+              }`}>{cat.label}</span>
             </div>
           ))}
-          <div 
-            onClick={() => navigate('/search')}
-            className="flex flex-col items-center justify-center min-w-[40px] cursor-pointer shrink-0"
-          >
-            <ChevronRight className="w-6 h-6 text-gray-400 hover:text-[#006A4E] transition-colors" />
-          </div>
         </div>
       </div>
 
       {/* Best-selling books */}
       <div className="mb-8">
         <div className="flex justify-between items-center mb-4">
-          <h3 className="font-bold text-gray-900">Best-selling books</h3>
+          <h3 className="font-bold text-gray-900">
+            {selectedGenre === 'All' ? 'Best-selling books' : `${selectedGenre} Picks`}
+          </h3>
+          {books.length > 0 && (
+            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest bg-gray-100 px-2 py-0.5 rounded">
+              {books.length} RESULTS
+            </span>
+          )}
         </div>
-        <div className="grid grid-cols-2 gap-4">
-          {displayBooks.map(book => (
-            <div 
-              key={book.id} 
-              onClick={() => navigate(`/book/${book.id}`)}
-              className="bg-white rounded-2xl p-3 shadow-sm border border-gray-100 cursor-pointer hover:shadow-md transition-shadow flex flex-col relative"
-            >
-              <button 
-                onClick={(e) => toggleFavorite(e, book.id)}
-                className="absolute top-4 right-4 z-10 w-8 h-8 bg-white rounded-full flex items-center justify-center shadow-sm"
-              >
-                <Heart className={`w-4 h-4 ${favorites.includes(book.id) ? 'text-red-500 fill-red-500' : 'text-gray-400'}`} />
-              </button>
-              
-              <div className="aspect-[3/4] w-full bg-gray-50 rounded-xl mb-3 overflow-hidden shrink-0">
-                {book.imageUrl ? (
-                  <img src={book.imageUrl} alt={book.title} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center">
-                    <BookOpen className="w-8 h-8 text-gray-300" />
-                  </div>
-                )}
-              </div>
-              
-              <h4 className="font-medium text-gray-900 text-sm line-clamp-2 mb-2 leading-tight h-10">{book.title}</h4>
-              
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-[10px] text-gray-600 border border-gray-300 rounded px-1.5 py-0.5">
-                  {book.condition}
-                </span>
-                <div className="flex items-center gap-0.5">
-                  {[1, 2, 3, 4, 5].map(i => (
-                    <Star key={i} className="w-2.5 h-2.5 text-[#FFB800] fill-[#FFB800]" />
-                  ))}
-                  <span className="text-[10px] text-gray-500 ml-0.5">(5.0)</span>
-                </div>
-              </div>
-              
-              <div className="mt-auto flex items-center justify-between mb-3">
-                <div className="flex flex-col">
-                  <span className="font-bold text-[#006A4E] text-sm leading-tight">
-                    {book.price}$
-                  </span>
-                  <span className="text-[10px] text-red-500 line-through leading-tight">
-                    {(book.price * 1.5).toFixed(2)}$
-                  </span>
-                </div>
-                <button 
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    addToCart({ ...book, originalPrice: book.price * 1.5 });
-                    navigate('/cart');
-                  }}
-                  className="bg-[#006A4E] text-white text-xs font-medium px-3 py-1.5 rounded-lg hover:bg-[#005C44] transition-colors"
-                >
-                  Add to cart
-                </button>
-              </div>
+        
+        {books.length === 0 && selectedGenre !== 'All' ? (
+          <div className="bg-white rounded-3xl p-8 border border-dashed border-gray-200 flex flex-col items-center justify-center text-center">
+            <div className="w-12 h-12 bg-gray-50 rounded-2xl flex items-center justify-center mb-3">
+              <Filter className="w-6 h-6 text-gray-300" />
             </div>
-          ))}
-        </div>
+            <h4 className="text-sm font-bold text-gray-800">No books found</h4>
+            <p className="text-xs text-gray-500 mt-1 max-w-[200px]">We couldn't find any books in {selectedGenre} right now.</p>
+            <button 
+              onClick={() => setSelectedGenre('All')}
+              className="mt-4 text-booxie-green text-xs font-bold underline"
+            >
+              Show all books
+            </button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-4">
+            <AnimatePresence>
+              {displayBooks.map((book, idx) => (
+                <motion.div 
+                  key={book.id} 
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: idx * 0.05 }}
+                  onClick={() => navigate(`/book/${book.id}`)}
+                  className="bg-white rounded-2xl p-3 shadow-sm border border-gray-100 cursor-pointer hover:shadow-md transition-shadow flex flex-col relative"
+                >
+                  <button 
+                    onClick={(e) => toggleFavorite(e, book.id)}
+                    className="absolute top-4 right-4 z-10 w-8 h-8 bg-white rounded-full flex items-center justify-center shadow-sm"
+                  >
+                    <Heart className={`w-4 h-4 ${favorites.includes(book.id) ? 'text-red-500 fill-red-500' : 'text-gray-400'}`} />
+                  </button>
+                  
+                  <div className="aspect-[3/4] w-full bg-gray-50 rounded-xl mb-3 overflow-hidden shrink-0">
+                    {book.imageUrl ? (
+                      <img src={book.imageUrl} alt={book.title} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <BookOpen className="w-8 h-8 text-gray-300" />
+                      </div>
+                    )}
+                  </div>
+                  
+                  <h4 className="font-medium text-gray-900 text-sm line-clamp-2 mb-1 leading-tight h-10">{book.title}</h4>
+                  <p className="text-[10px] text-gray-400 mb-2 line-clamp-1 italic">{book.author}</p>
+                  
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[10px] text-booxie-green font-bold bg-booxie-green/5 px-1.5 py-0.5 rounded capitalize">
+                      {book.condition}
+                    </span>
+                    <div className="flex items-center gap-0.5">
+                      <Star className="w-2.5 h-2.5 text-[#FFB800] fill-[#FFB800]" />
+                      <span className="text-[10px] text-gray-500 font-bold ml-0.5">5.0</span>
+                    </div>
+                  </div>
+                  
+                  <div className="mt-auto flex items-center justify-between">
+                    <div className="flex flex-col">
+                      <span className="font-bold text-[#006A4E] text-sm leading-tight">
+                        ${book.price}
+                      </span>
+                    </div>
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        addToCart({ ...book, originalPrice: book.price * 1.5 });
+                        navigate('/cart');
+                      }}
+                      className="bg-[#006A4E] text-white text-[10px] font-bold p-2 px-3 rounded-xl hover:bg-[#005C44] transition-colors shadow-sm"
+                    >
+                      Buy
+                    </button>
+                  </div>
+                </motion.div>
+              ))}
+            </AnimatePresence>
+          </div>
+        )}
       </div>
 
       {/* Donation Books Section */}

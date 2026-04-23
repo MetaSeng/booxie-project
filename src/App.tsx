@@ -4,7 +4,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { CartProvider } from './context/CartContext';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import Layout from './components/Layout';
-import { motion } from 'framer-motion';
+import { motion } from 'motion/react';
 import BooxieLogo from './components/BooxieLogo';
 
 import WelcomeScreen from './screens/WelcomeScreen';
@@ -66,13 +66,14 @@ function LoadingScreen() {
 }
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { user, loading } = useAuth();
+  const { user, profile, loading } = useAuth();
   
   if (loading) {
     return <LoadingScreen />;
   }
   
-  if (!user) {
+  // Allow entry if authenticated OR if in guest/demo mode
+  if (!user && !profile?.isDemo && !profile?.isLocalGuest) {
     return <Navigate to="/welcome" />;
   }
   

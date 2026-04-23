@@ -75,6 +75,7 @@
         "authorName": { "type": "string" },
         "authorPhoto": { "type": "string" },
         "content": { "type": "string" },
+        "hashtags": { "type": "array", "items": { "type": "string" } },
         "likedBy": { "type": "array", "items": { "type": "string" } },
         "comments": { 
           "type": "array", 

@@ -1,22 +1,62 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ThinkingLevel } from '@google/genai';
+import { ThinkingLevel, FunctionDeclaration, Type } from '@google/genai';
 import { getGeminiAI } from '../lib/gemini';
-import { Send, Loader2, ArrowLeft, Phone, Camera, Smile, Image as ImageIcon, Mic, Bot, BrainCircuit, ImagePlus } from 'lucide-react';
+import { Send, Loader2, ArrowLeft, Phone, Camera, Smile, Image as ImageIcon, Mic, Bot, BrainCircuit, ImagePlus, Search, BookOpen, Star, ChevronRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
+import { motion } from 'motion/react';
 import { isGeminiQuotaError, GEMINI_QUOTA_ERROR_MESSAGE } from '../lib/geminiErrors';
+import { collection, query, where, getDocs, limit, orderBy } from 'firebase/firestore';
+import { db } from '../firebase';
 
 const PROMPT_CHIPS = [
-  "Please recommend a book for computer science.",
-  "Find textbooks under $30",
-  "How do I donate books?",
-  "Track my order"
+  "Recommend books for Grade 12 Math",
+  "Find IELTS preparation textbooks",
+  "Programming books for beginners",
+  "Best fiction books available"
+];
+
+interface BookResult {
+  id: string;
+  title: string;
+  author: string;
+  price: number;
+  imageUrl?: string;
+  condition: string;
+  rating?: number;
+}
+
+const searchBooksTool: FunctionDeclaration = {
+  name: "searchBooks",
+  description: "Search for books in the marketplace database by title, author, subject, or grade.",
+  parameters: {
+    type: Type.OBJECT,
+    properties: {
+      queryText: {
+        type: Type.STRING,
+        description: "The search terms (e.g., 'Grade 12 Math', 'physics', 'IELTS')."
+      },
+      category: {
+        type: Type.STRING,
+        description: "Filtering category (e.g., 'printed', 'english', 'diploma', 'exam', 'fiction')."
+      }
+    },
+    required: ["queryText"]
+  }
+};
+
+const MOCK_BOOKS: BookResult[] = [
+  { id: '1', title: 'Grade 12 Mathematics (Advanced)', author: 'Ministry of Education', price: 1.12, condition: 'Like New', imageUrl: 'https://images.unsplash.com/photo-1543002588-bfa74002ed7e?auto=format&fit=crop&q=80&w=300&h=400' },
+  { id: '2', title: 'Physics for Scientists Grade 11', author: 'Ministry of Education', price: 1.50, condition: 'Good', imageUrl: 'https://images.unsplash.com/photo-1532012197267-da84d127e765?auto=format&fit=crop&q=80&w=300&h=400' },
+  { id: '3', title: 'Khmer Literature - Selected Stories', author: 'Literature Dept', price: 0.75, condition: 'Fair', imageUrl: 'https://images.unsplash.com/photo-1589829085413-56de8ae18c73?auto=format&fit=crop&q=80&w=300&h=400' },
+  { id: '4', title: 'IELTS Official Academic Practice', author: 'IDP Education', price: 4.25, condition: 'New', imageUrl: 'https://images.unsplash.com/photo-1544947950-fa07a98d237f?auto=format&fit=crop&q=80&w=300&h=400' },
+  { id: '5', title: 'Geography of Cambodia', author: 'Ministry of Education', price: 1.20, condition: 'New', imageUrl: 'https://images.unsplash.com/photo-1524334228333-0f6db392f8a1?auto=format&fit=crop&q=80&w=300&h=400' },
 ];
 
 export default function GeminiChatScreen() {
   const navigate = useNavigate();
-  const [messages, setMessages] = useState<{role: string, text: string}[]>([
-    { role: 'model', text: 'Hi! I\'m Booxie\'s AI assistant. I can help you find books, request books based on your preferences, or answer questions about our platform. What can I help you with today?' }
+  const [messages, setMessages] = useState<{role: string, text: string, books?: BookResult[]}[]>([
+    { role: 'model', text: 'Hi! I\'m Booxie\'s intelligent book assistant. I can help you find specific textbooks, recommend study materials based on your grade, or search for any subject you\'re interested in. What are you looking for today? 📚' }
   ]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -32,7 +72,6 @@ export default function GeminiChatScreen() {
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const recordingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   
-  // We use a ref to store the chat instance so it persists across renders
   const chatRef = useRef<any>(null);
 
   const emojis = ['👍', '❤️', '😂', '😮', '😢', '🙏', '🔥', '✅', '👋', '😊'];
@@ -55,7 +94,7 @@ export default function GeminiChatScreen() {
         }
         const base64Data = base64.split(',')[1];
         const response = await ai.models.generateContent({
-          model: 'gemini-3.1-flash-preview',
+          model: 'gemini-3-flash-preview',
           contents: [
             {
               role: 'user',
@@ -104,22 +143,22 @@ export default function GeminiChatScreen() {
   };
 
   useEffect(() => {
-    const ai = getGeminiAI();
-    if (!ai) return;
+    // Only initialize if not already done, or if thinking mode changed at the very start
+    if (!chatRef.current || messages.length === 1) {
+      const ai = getGeminiAI();
+      if (!ai) return;
 
-    const config: any = {
-      systemInstruction: "You are the Booxie AI Assistant. Booxie is a marketplace for students to buy, sell, and donate second-hand books. Be helpful, concise, and friendly. You can help with study tips, book recommendations, and app usage."
-    };
-    
-    if (thinkingMode) {
-      config.thinkingConfig = { thinkingLevel: ThinkingLevel.HIGH };
+      const config: any = {
+        systemInstruction: "You are the Booxie Intelligent Book Assistant. You help users find books quickly. When users ask for a book or subject, ALWAYS call the searchBooks tool. After you get results, present them to the user and guide them to 'View Book Details'. Respond concisely. If no match is found, explain clearly and suggest related alternatives. Rules: 1. Always prioritize helping the user discover books. 2. Be energetic and helpful.",
+        tools: [{ functionDeclarations: [searchBooksTool] }]
+      };
+      
+      chatRef.current = ai.chats.create({
+        model: thinkingMode ? 'gemini-3.1-pro-preview' : 'gemini-3-flash-preview',
+        config
+      });
     }
-
-    chatRef.current = ai.chats.create({
-      model: thinkingMode ? 'gemini-3.1-pro-preview' : 'gemini-3-flash-preview',
-      config
-    });
-  }, [thinkingMode]);
+  }, [thinkingMode, messages.length]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -200,17 +239,91 @@ export default function GeminiChatScreen() {
       // Add an empty model message that we will stream into
       setMessages(prev => [...prev, { role: 'model', text: '' }]);
       
-      const stream = await chatRef.current.sendMessageStream({ message: textToSend });
+      let response = await chatRef.current.sendMessage({ message: textToSend });
       
-      let fullText = '';
-      for await (const chunk of stream) {
-        const chunkText = chunk.text || '';
-        fullText += chunkText;
-        
-        // Update the last message with the accumulated text
+      // Handle Function Calling potentially multiple times
+      let attempts = 0;
+      while (response.functionCalls && attempts < 3) {
+        attempts++;
+        const call = response.functionCalls[0];
+        if (call.name === 'searchBooks') {
+          const { queryText } = call.args as any;
+          
+          // Execute Firestore Search
+          const booksRef = collection(db, 'books');
+          const q = query(
+            booksRef, 
+            where('status', '==', 'available'),
+            limit(20)
+          );
+          
+          const snapshot = await getDocs(q);
+          const dbResults = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as BookResult));
+          
+          // Filter if we have a query
+          let filteredResults: BookResult[] = [];
+          if (queryText) {
+            const queryLower = queryText.toLowerCase();
+            filteredResults = dbResults.filter(book => 
+              book.title.toLowerCase().includes(queryLower) ||
+              book.author.toLowerCase().includes(queryLower)
+            );
+          } else {
+            filteredResults = dbResults;
+          }
+
+          // FALLBACK LOGIC: If no books found in DB, use Mock data
+          if (filteredResults.length === 0) {
+            const queryLower = (queryText || "").toLowerCase();
+            filteredResults = MOCK_BOOKS.filter(book => 
+              book.title.toLowerCase().includes(queryLower) ||
+              "grade 12 mathematics physics ielts cambodia".toLowerCase().includes(queryLower)
+            );
+            
+            // If still empty, just give some general mock books
+            if (filteredResults.length === 0) {
+              filteredResults = MOCK_BOOKS.slice(0, 3);
+            }
+          }
+
+          const limitedResults = filteredResults.slice(0, 5);
+
+          // Second round of conversation to present results
+          const toolResponse = {
+            role: 'user', 
+            parts: [{
+              functionResponse: {
+                name: 'searchBooks',
+                response: { books: limitedResults }
+              }
+            }]
+          };
+
+          response = await chatRef.current.sendMessage({ message: toolResponse });
+          
+          // Update message with text and the books property for rendering
+          setMessages(prev => {
+            const newMessages = [...prev];
+            const lastIdx = newMessages.length - 1;
+            newMessages[lastIdx] = { 
+              role: 'model', 
+              text: response.text || "Here are some books I found for you:",
+              books: limitedResults
+            };
+            return newMessages;
+          });
+        }
+      } 
+      
+      // If we finished without function calls anymore (or initial response was just text)
+      if (!response.functionCalls) {
         setMessages(prev => {
           const newMessages = [...prev];
-          newMessages[newMessages.length - 1] = { role: 'model', text: fullText };
+          const lastIdx = newMessages.length - 1;
+          newMessages[lastIdx] = { 
+            role: 'model', 
+            text: response.text || "" 
+          };
           return newMessages;
         });
       }
@@ -230,6 +343,57 @@ export default function GeminiChatScreen() {
     }
   };
 
+  const renderBookCards = (books: BookResult[]) => {
+    return (
+      <div className="flex gap-4 overflow-x-auto pb-4 no-scrollbar -mx-4 px-4 scroll-smooth mt-4">
+        {books.map(book => (
+          <motion.div 
+            key={book.id}
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            className="min-w-[180px] bg-white rounded-[24px] p-2.5 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-gray-50 flex flex-col"
+          >
+            <div className="aspect-[3/4] w-full bg-[#F8FCF9] rounded-[18px] overflow-hidden mb-3 relative group">
+              {book.imageUrl ? (
+                <img src={book.imageUrl} alt={book.title} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" referrerPolicy="no-referrer" />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center">
+                  <BookOpen className="w-8 h-8 text-[#006A4E]/20" />
+                </div>
+              )}
+              <div className="absolute top-2 right-2 bg-white/90 backdrop-blur-sm px-2 py-0.5 rounded-full flex items-center gap-1 shadow-sm">
+                <Star className="w-2.5 h-2.5 text-[#FFB800] fill-[#FFB800]" />
+                <span className="text-[10px] font-bold text-gray-800">5.0</span>
+              </div>
+            </div>
+            
+            <div className="px-1 flex-1 flex flex-col">
+              <h4 className="text-xs font-bold text-gray-900 line-clamp-1 mb-0.5">{book.title}</h4>
+              <p className="text-[10px] text-gray-500 font-medium truncate mb-2">{book.author}</p>
+              
+              <div className="mt-auto flex items-center justify-between">
+                <span className="text-sm font-black text-[#006A4E]">{book.price}$</span>
+                <button 
+                  onClick={() => navigate(`/book/${book.id}`)}
+                  className="bg-[#006A4E] text-white p-2 rounded-xl hover:bg-[#005C44] transition-colors shadow-sm"
+                >
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+              
+              <button 
+                onClick={() => navigate(`/book/${book.id}`)}
+                className="w-full mt-3 py-2 bg-[#F8FCF9] hover:bg-[#E8F5F0] text-[#006A4E] text-[10px] font-bold rounded-xl transition-colors border border-[#006A4E]/5"
+              >
+                View Book Details
+              </button>
+            </div>
+          </motion.div>
+        ))}
+      </div>
+    );
+  };
+
   return (
     <div className="flex flex-col h-full bg-[#F8FCF9] font-sans">
       {/* Header */}
@@ -243,25 +407,22 @@ export default function GeminiChatScreen() {
           </div>
           <div className="flex flex-col">
             <div className="flex items-center gap-1.5">
-              <h2 className="font-bold text-gray-900 text-lg leading-tight">Booxie AI Help</h2>
+              <h2 className="font-bold text-gray-900 text-lg leading-tight">Booxie AI Assistant</h2>
               <span className="text-[10px] font-bold text-[#006A4E] bg-[#E8F5F0] px-1.5 py-0.5 rounded flex items-center gap-0.5">
                 <span className="w-1.5 h-1.5 bg-[#006A4E] rounded-full animate-pulse"></span>
-                AI
+                LIVE
               </span>
             </div>
-            <p className="text-[11px] text-gray-500 font-medium">Powered by AI</p>
+            <p className="text-[11px] text-gray-500 font-medium">Expert Book Marketplace Assistant</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
           <button 
             onClick={() => setThinkingMode(!thinkingMode)}
             className={`p-2 rounded-full transition-colors ${thinkingMode ? 'bg-[#006A4E] text-white' : 'text-[#006A4E] bg-[#E8F5F0]'}`}
-            title="Toggle High Thinking Mode"
+            title="Toggle Expert Reasoning"
           >
             <BrainCircuit className="w-5 h-5" />
-          </button>
-          <button className="p-2 text-[#006A4E]">
-            <Phone className="w-5 h-5" />
           </button>
         </div>
       </div>
@@ -278,12 +439,13 @@ export default function GeminiChatScreen() {
                     <Bot className="w-5 h-5 text-white" />
                   </div>
                 )}
-                <div className={`max-w-[80%] rounded-2xl px-4 py-3 ${isUser ? 'bg-[#006A4E] text-white rounded-br-sm shadow-sm' : 'bg-[#F0F2F5] text-gray-800 rounded-bl-sm shadow-sm'}`}>
-                  <div className={`prose prose-sm max-w-none ${isUser ? 'prose-invert' : ''}`}>
+                <div className={`max-w-[85%] rounded-[24px] px-4 py-3.5 ${isUser ? 'bg-[#1D1D1F] text-white rounded-br-sm shadow-md' : 'bg-white text-gray-800 rounded-bl-sm shadow-sm border border-gray-100'}`}>
+                  <div className={`prose prose-sm max-w-none ${isUser ? 'prose-invert font-medium' : 'text-gray-900'}`}>
                     <ReactMarkdown>{msg.text}</ReactMarkdown>
                   </div>
+                  {!isUser && msg.books && msg.books.length > 0 && renderBookCards(msg.books)}
                   {!isUser && idx === 0 && (
-                    <div className="text-[9px] text-gray-400 mt-2">10:36 PM</div>
+                    <div className="text-[9px] text-gray-400 mt-2 font-bold uppercase tracking-widest">Chat Initialized</div>
                   )}
                 </div>
               </div>

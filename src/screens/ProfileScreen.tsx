@@ -12,8 +12,16 @@ export default function ProfileScreen() {
   const [activeTab, setActiveTab] = useState('Orders');
 
   const handleLogout = async () => {
-    await logOut();
-    navigate('/welcome');
+    try {
+      await logOut();
+      localStorage.removeItem('guestMode');
+      navigate('/welcome');
+    } catch (error) {
+      console.error("Logout failed", error);
+      // Even if firebase logout fails, clear local state and go to welcome
+      localStorage.removeItem('guestMode');
+      navigate('/welcome');
+    }
   };
 
   return (
@@ -64,19 +72,21 @@ export default function ProfileScreen() {
 
           <div className="w-full h-px bg-gray-200 mb-4"></div>
 
-          {/* Admin Access Button (Only visible to admins in a real app, but shown here for demo) */}
-          <button
-            onClick={() => navigate('/admin')}
-            className="w-full flex items-center justify-between p-3 mb-4 bg-gray-50 rounded-xl border border-gray-200 hover:bg-gray-100 transition-colors"
-          >
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center">
-                <Settings className="w-4 h-4 text-gray-600" />
+          {/* Admin Access Button (Only visible to admins) */}
+          {(profile?.role === 'admin' || user?.email === 'sh6025010078@camtech.edu.kh') && (
+            <button
+              onClick={() => navigate('/admin')}
+              className="w-full flex items-center justify-between p-3 mb-4 bg-gray-50 rounded-xl border border-gray-200 hover:bg-gray-100 transition-colors"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center">
+                  <Settings className="w-4 h-4 text-gray-600" />
+                </div>
+                <span className="text-sm font-bold text-gray-900">Admin Dashboard</span>
               </div>
-              <span className="text-sm font-bold text-gray-900">Admin Dashboard</span>
-            </div>
-            <span className="text-xs text-gray-500">Manage Platform</span>
-          </button>
+              <span className="text-xs text-gray-500">Manage Platform</span>
+            </button>
+          )}
 
           {/* Saving Points Card */}
           <div className="border border-[#006A4E] rounded-xl p-4">

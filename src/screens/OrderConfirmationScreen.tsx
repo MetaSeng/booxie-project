@@ -113,11 +113,11 @@ export default function OrderConfirmationScreen() {
           </div>
         </div>
 
-        {/* Shipping Method */}
+        {/* Delivery Method */}
         <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 mb-4">
           <h3 className="font-bold text-gray-900 flex items-center gap-2 mb-3">
             <Package className="w-4 h-4 text-[#006A4E]" />
-            Shipping Method
+            Delivery Method
           </h3>
           <div className="flex items-center justify-between border border-[#006A4E] bg-[#E8F5F0] rounded-xl p-3">
             <div>

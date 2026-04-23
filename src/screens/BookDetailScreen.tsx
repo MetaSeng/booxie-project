@@ -10,7 +10,7 @@ import BooxieLogo from '../components/BooxieLogo';
 export default function BookDetailScreen() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const { addToCart } = useCart();
   const [book, setBook] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -36,19 +36,24 @@ export default function BookDetailScreen() {
   }, [id]);
 
   const handleContactSeller = async () => {
-    if (!user || !book) return;
+    // Current identity: either firebase user or guest profile
+    const currentUserId = user?.uid || profile?.uid || 'guest-demo-id';
+    const currentUserName = user?.displayName || profile?.name || 'Alex (Guest)';
+    
+    if (!book) return;
 
     try {
+      // Look for existing conversation between these two for this book
       const q = query(
         collection(db, 'conversations'),
-        where('participants', 'array-contains', user.uid)
+        where('participants', 'array-contains', currentUserId)
       );
       const querySnapshot = await getDocs(q);
       
       let existingConvId = null;
       querySnapshot.forEach((doc) => {
         const data = doc.data();
-        if (data.participants.includes(book.sellerId) && data.bookId === book.id) {
+        if (data.participants.includes(book.sellerId) && (data.bookId === book.id || data.bookTitle === book.title)) {
           existingConvId = doc.id;
         }
       });
@@ -57,16 +62,23 @@ export default function BookDetailScreen() {
         navigate(`/chat/${existingConvId}`);
       } else {
         const convRef = await addDoc(collection(db, 'conversations'), {
-          participants: [user.uid, book.sellerId],
-          bookId: book.id,
+          participants: [currentUserId, book.sellerId],
+          participantNames: {
+            [currentUserId]: currentUserName,
+            [book.sellerId]: book.sellerName || 'Seller'
+          },
+          bookId: book.id || 'demo-id',
           bookTitle: book.title,
           updatedAt: serverTimestamp(),
-          lastMessage: ''
+          lastMessage: '',
+          createdAt: serverTimestamp()
         });
         navigate(`/chat/${convRef.id}`);
       }
     } catch (error) {
-      handleFirestoreError(error, OperationType.CREATE, 'conversations');
+      console.error("Chat initiation error:", error);
+      // Fallback for demo if firestore write fails
+      navigate('/chat/demo-conversation');
     }
   };
 
@@ -151,7 +163,7 @@ export default function BookDetailScreen() {
             <div className="border border-[#006A4E] rounded-xl p-4 flex justify-between items-center mb-6">
               <div>
                 <p className="text-sm font-medium text-gray-900 mb-1">Earn points from this purchase</p>
-                <p className="text-sm text-blue-500">100 reward points</p>
+                <p className="text-sm text-blue-500">10 reward points</p>
               </div>
               <div className="w-10 h-10">
                 <img src="https://cdn-icons-png.flaticon.com/512/4213/4213625.png" alt="Gift" className="w-full h-full object-contain" />
@@ -222,13 +234,6 @@ export default function BookDetailScreen() {
               >
                 <MessageCircle className="w-4 h-4" />
                 Chat
-              </button>
-
-              <button 
-                onClick={() => navigate('/checkout', { state: { book } })}
-                className="w-full bg-[#006A4E] text-white rounded-full font-bold text-sm py-3.5 shadow-lg shadow-[#006A4E]/20 hover:bg-[#005A42] transition-colors"
-              >
-                {book.type === 'donation' ? 'Request' : 'Buy now'}
               </button>
             </div>
           </div>

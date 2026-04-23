@@ -33,6 +33,10 @@ export const signInWithGoogle = async () => {
     const result = await signInWithPopup(auth, googleProvider);
     return result.user;
   } catch (error: any) {
+    if (error.code === 'auth/popup-closed-by-user') {
+      // User closed the popup, not an actual error we need to show
+      return null;
+    }
     console.error("Firebase Auth Error:", error.code, error.message, error);
     // If it's a generic internal error, it might be due to unauthorized domain
     if (error.code === 'auth/internal-error') {
@@ -41,6 +45,9 @@ export const signInWithGoogle = async () => {
     if (error.code === 'auth/unauthorized-domain') {
       const domain = window.location.hostname;
       throw new Error(`Domain "${domain}" is not authorized. Please add it to your Firebase Console > Authentication > Settings > Authorized Domains.`);
+    }
+    if (error.code === 'auth/network-request-failed') {
+      throw new Error('Network request failed. This often happens due to cross-site tracking protections or browser extensions. Try opening in a new tab or incognito.');
     }
     throw error;
   }
@@ -77,8 +84,14 @@ export const signUpWithEmail = async (
     });
     
     return result.user;
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error signing up with email", error);
+    if (error.code === 'auth/network-request-failed') {
+      throw new Error('Network error. Please check your connection or add this domain to Authorized Domains in Firebase Console.');
+    }
+    if (error.code === 'auth/operation-not-allowed') {
+      throw new Error('Email/Password authentication is not enabled. Please enable it in your Firebase Console > Authentication > Sign-in method.');
+    }
     throw error;
   }
 };
@@ -87,8 +100,57 @@ export const logInWithEmail = async (email: string, pass: string) => {
   try {
     const result = await signInWithEmailAndPassword(auth, email, pass);
     return result.user;
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error logging in with email", error);
+    if (error.code === 'auth/operation-not-allowed') {
+      throw new Error('Email/Password authentication is not enabled. Please enable it in your Firebase Console > Authentication > Sign-in method.');
+    }
+    throw error;
+  }
+};
+
+/**
+ * Log in as a pre-configured demo user.
+ * This bypasses the 'anonymous auth disabled' error by using a real email/pass account.
+ */
+export const logInAsDemo = async () => {
+  const demoEmail = 'alex.demo@booxie.app';
+  const demoPass = 'booxie123demo';
+  const demoName = 'Alex (Demo)';
+
+  try {
+    // Try logging in
+    const result = await signInWithEmailAndPassword(auth, demoEmail, demoPass);
+    return result.user;
+  } catch (error: any) {
+    // If user doesn't exist, create the demo account automatically
+    if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
+      try {
+        const result = await createUserWithEmailAndPassword(auth, demoEmail, demoPass);
+        await updateProfile(result.user, { displayName: demoName });
+        
+        // Profile creation is handled by AuthContext or we can do it here
+        const userRef = doc(db, 'users', result.user.uid);
+        await setDoc(userRef, {
+          uid: result.user.uid,
+          name: demoName,
+          email: demoEmail,
+          role: 'user',
+          rewardPoints: 1250,
+          purchasedCount: 5,
+          soldCount: 2,
+          donatedCount: 8,
+          isDemo: true,
+          bio: 'Reading enthusiast & Booxie explorer! 📚✨',
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
+        });
+        return result.user;
+      } catch (signUpError) {
+        console.error("Failed to create demo account", signUpError);
+        throw signUpError;
+      }
+    }
     throw error;
   }
 };
@@ -106,8 +168,11 @@ export const signInAnonymously = async () => {
   try {
     const result = await firebaseSignInAnonymously(auth);
     return result.user;
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error signing in anonymously", error);
+    if (error.code === 'auth/admin-restricted-operation') {
+      throw new Error('Anonymous authentication is not enabled. Please enable it in your Firebase Console > Authentication > Sign-in method.');
+    }
     throw error;
   }
 };
