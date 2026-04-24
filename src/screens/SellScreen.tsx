@@ -504,10 +504,10 @@ export default function SellScreen() {
         </button>
       </div>
 
-      <div className="px-6 py-3 shrink-0">
+      <div className="px-6 py-2 shrink-0">
         <button
           onClick={handleManualListing}
-          className="w-full rounded-2xl border-2 border-white/40 bg-white/15 px-5 py-3.5 text-base font-bold text-white backdrop-blur-md hover:bg-white/25 transition-all active:scale-95 shadow-lg"
+          className="w-full rounded-2xl bg-white text-[#1A8765] px-5 py-3 text-base font-bold shadow-lg hover:bg-white/95 transition-all active:scale-95"
         >
           ✎ Enter Details Manually
         </button>
