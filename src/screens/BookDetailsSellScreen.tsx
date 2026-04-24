@@ -1,29 +1,47 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
-import { db, auth, handleFirestoreError, OperationType } from '../firebase';
-import { ChevronLeft, ChevronDown, Sparkles, BookOpen, GraduationCap, Microscope, Globe, ScrollText, Library, Languages, Check, ImagePlus, X } from 'lucide-react';
-import { addRewardPoints, REWARD_POINTS } from '../lib/rewards';
-import { motion, AnimatePresence } from 'motion/react';
-import { isGeminiQuotaError } from '../lib/geminiErrors';
-import { getGeminiAI } from '../lib/gemini';
+import React, { useState, useEffect } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
+import { collection, addDoc, serverTimestamp } from "firebase/firestore";
+import { db, auth, handleFirestoreError, OperationType } from "../firebase";
+import {
+  ChevronLeft,
+  ChevronDown,
+  Sparkles,
+  BookOpen,
+  GraduationCap,
+  Microscope,
+  Globe,
+  ScrollText,
+  Library,
+  Languages,
+  Check,
+  ImagePlus,
+  X,
+} from "lucide-react";
+import { addRewardPoints, REWARD_POINTS } from "../lib/rewards";
+import { motion, AnimatePresence } from "motion/react";
+import { isGeminiQuotaError } from "../lib/geminiErrors";
+import { getGeminiAI } from "../lib/gemini";
 
 const CATEGORIES = [
-  { id: 'Textbook', icon: BookOpen },
-  { id: 'Grade 12', icon: GraduationCap },
-  { id: 'Grade 9', icon: GraduationCap },
-  { id: 'Exam Paper', icon: ScrollText },
-  { id: 'Science', icon: Microscope },
-  { id: 'Social Study', icon: Globe },
-  { id: 'English', icon: Languages },
-  { id: 'Novels', icon: Library },
-  { id: 'Story', icon: Library }
+  { id: "Textbook", icon: BookOpen },
+  { id: "Grade 12", icon: GraduationCap },
+  { id: "Grade 9", icon: GraduationCap },
+  { id: "Exam Paper", icon: ScrollText },
+  { id: "Science", icon: Microscope },
+  { id: "Social Study", icon: Globe },
+  { id: "English", icon: Languages },
+  { id: "Novels", icon: Library },
+  { id: "Story", icon: Library },
 ];
 
-const CONDITIONS = ['New', 'Like New', 'Good', 'Normal'];
+const CONDITIONS = ["New", "Like New", "Good", "Normal"];
 
-function compressDataUrlImage(src: string, maxDimension = 960, quality = 0.8): Promise<string> {
-  if (!src.startsWith('data:image/')) {
+function compressDataUrlImage(
+  src: string,
+  maxDimension = 960,
+  quality = 0.8,
+): Promise<string> {
+  if (!src.startsWith("data:image/")) {
     return Promise.resolve(src);
   }
 
@@ -32,19 +50,19 @@ function compressDataUrlImage(src: string, maxDimension = 960, quality = 0.8): P
     img.onload = () => {
       const longestSide = Math.max(img.width, img.height) || 1;
       const scale = Math.min(1, maxDimension / longestSide);
-      const canvas = document.createElement('canvas');
+      const canvas = document.createElement("canvas");
 
       canvas.width = Math.max(1, Math.round(img.width * scale));
       canvas.height = Math.max(1, Math.round(img.height * scale));
 
-      const ctx = canvas.getContext('2d');
+      const ctx = canvas.getContext("2d");
       if (!ctx) {
         resolve(src);
         return;
       }
 
       ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-      resolve(canvas.toDataURL('image/jpeg', quality));
+      resolve(canvas.toDataURL("image/jpeg", quality));
     };
 
     img.onerror = () => resolve(src);
@@ -56,80 +74,99 @@ export default function BookDetailsSellScreen() {
   const navigate = useNavigate();
   const location = useLocation();
   const manualEntry = Boolean(location.state?.manualEntry);
-  
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isRecommending, setIsRecommending] = useState(false);
-  const [aiRecommendedCategory, setAiRecommendedCategory] = useState<string | null>(null);
+  const [aiRecommendedCategory, setAiRecommendedCategory] = useState<
+    string | null
+  >(null);
   const [quotaExceeded, setQuotaExceeded] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
   const [showConfirm, setShowConfirm] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
-  const [isEditing, setIsEditing] = useState(manualEntry || !location.state?.scannedData);
+  const [isEditing, setIsEditing] = useState(
+    manualEntry || !location.state?.scannedData,
+  );
   const titleInputRef = React.useRef<HTMLInputElement>(null);
   const frontImageInputRef = React.useRef<HTMLInputElement>(null);
   const backImageInputRef = React.useRef<HTMLInputElement>(null);
-  
+
   const [formData, setFormData] = useState({
-    title: '',
-    author: '',
-    category: 'Textbook',
-    isbn: '',
-    price: '',
-    condition: 'Good',
-    description: '',
-    imageUrl: '',
-    backCoverUrl: '',
-    type: 'sale' // 'sale' or 'donation'
+    title: "",
+    author: "",
+    category: "Textbook",
+    isbn: "",
+    price: "",
+    condition: "Good",
+    description: "",
+    imageUrl: "",
+    backCoverUrl: "",
+    type: "sale", // 'sale' or 'donation'
   });
 
   useEffect(() => {
     if (location.state?.scannedData) {
-      const { title, author, description, price, imageUrl, backCoverUrl, type, condition } = location.state.scannedData;
-      setFormData(prev => ({
+      const {
+        title,
+        author,
+        description,
+        price,
+        imageUrl,
+        backCoverUrl,
+        type,
+        condition,
+      } = location.state.scannedData;
+      setFormData((prev) => ({
         ...prev,
         title: title || prev.title,
         author: author || prev.author,
         description: description || prev.description,
-        price: (price !== undefined && price !== null) ? price.toString() : prev.price,
+        price:
+          price !== undefined && price !== null ? price.toString() : prev.price,
         imageUrl: imageUrl || prev.imageUrl,
         backCoverUrl: backCoverUrl || prev.backCoverUrl,
-        type: type || (price === 0 ? 'donation' : 'sale'),
-        condition: condition || 'Good'
+        type: type || (price === 0 ? "donation" : "sale"),
+        condition: condition || "Good",
       }));
 
       // Trigger AI Recommendation
       if (title || author) {
-        recommendCategory(title || '', author || '', description || '');
+        recommendCategory(title || "", author || "", description || "");
       }
     }
   }, [location.state]);
 
-  const handleImageUpload = (field: 'imageUrl' | 'backCoverUrl') => (
+  const handleImageUpload =
+    (field: "imageUrl" | "backCoverUrl") =>
     (event: React.ChangeEvent<HTMLInputElement>) => {
       const file = event.target.files?.[0];
       if (!file) return;
 
       const reader = new FileReader();
       reader.onload = () => {
-        setFormData(prev => ({
+        setFormData((prev) => ({
           ...prev,
-          [field]: typeof reader.result === 'string' ? reader.result : prev[field]
+          [field]:
+            typeof reader.result === "string" ? reader.result : prev[field],
         }));
       };
       reader.readAsDataURL(file);
 
-      event.target.value = '';
-    }
-  );
+      event.target.value = "";
+    };
 
-  const clearImage = (field: 'imageUrl' | 'backCoverUrl') => {
-    setFormData(prev => ({
+  const clearImage = (field: "imageUrl" | "backCoverUrl") => {
+    setFormData((prev) => ({
       ...prev,
-      [field]: ''
+      [field]: "",
     }));
   };
 
-  const recommendCategory = async (title: string, author: string, desc: string) => {
+  const recommendCategory = async (
+    title: string,
+    author: string,
+    desc: string,
+  ) => {
     setIsRecommending(true);
     setQuotaExceeded(false);
     try {
@@ -138,7 +175,7 @@ export default function BookDetailsSellScreen() {
         return;
       }
       const prompt = `Based on this book info: Title: "${title}", Author: "${author}", Description: "${desc}". 
-      Select the best category from this list: ${CATEGORIES.map(c => c.id).join(', ')}. 
+      Select the best category from this list: ${CATEGORIES.map((c) => c.id).join(", ")}. 
       Return only the category name. If unsure, return "Textbook".`;
 
       const response = await ai.models.generateContent({
@@ -147,9 +184,9 @@ export default function BookDetailsSellScreen() {
       });
 
       const recommendation = response.text?.trim();
-      if (recommendation && CATEGORIES.some(c => c.id === recommendation)) {
+      if (recommendation && CATEGORIES.some((c) => c.id === recommendation)) {
         setAiRecommendedCategory(recommendation);
-        setFormData(prev => ({ ...prev, category: recommendation }));
+        setFormData((prev) => ({ ...prev, category: recommendation }));
       }
     } catch (err: any) {
       console.error("AI Recommendation failed:", err);
@@ -164,13 +201,13 @@ export default function BookDetailsSellScreen() {
 
   const handleSellClick = () => {
     if (!formData.title.trim() || !formData.author.trim()) {
-      setError('Please add at least the book title and author before listing.');
+      setError("Please add at least the book title and author before listing.");
       setIsEditing(true);
       return;
     }
 
-    if (formData.type === 'sale' && !formData.price) {
-      setError('Please enter a price for sale listings.');
+    if (formData.type === "sale" && !formData.price) {
+      setError("Please enter a price for sale listings.");
       setIsEditing(true);
       return;
     }
@@ -180,16 +217,22 @@ export default function BookDetailsSellScreen() {
 
   const confirmSell = async () => {
     setIsSubmitting(true);
-    setError('');
+    setError("");
 
     try {
       if (!auth.currentUser) {
-        throw new Error('Please sign in with a registered account to create a listing.');
+        throw new Error(
+          "Please sign in with a registered account to create a listing.",
+        );
       }
 
       const [compressedFrontImage, compressedBackImage] = await Promise.all([
-        formData.imageUrl ? compressDataUrlImage(formData.imageUrl) : Promise.resolve(''),
-        formData.backCoverUrl ? compressDataUrlImage(formData.backCoverUrl) : Promise.resolve(''),
+        formData.imageUrl
+          ? compressDataUrlImage(formData.imageUrl)
+          : Promise.resolve(""),
+        formData.backCoverUrl
+          ? compressDataUrlImage(formData.backCoverUrl)
+          : Promise.resolve(""),
       ]);
 
       const bookData = {
@@ -198,40 +241,54 @@ export default function BookDetailsSellScreen() {
         category: formData.category,
         isbn: formData.isbn,
         description: formData.description,
-        price: formData.type === 'donation' ? 0 : Number(formData.price),
+        price: formData.type === "donation" ? 0 : Number(formData.price),
         sellerId: auth.currentUser.uid,
-        sellerName: auth.currentUser.displayName || auth.currentUser.email || 'Seller',
-        status: 'available',
-        condition: formData.condition.toLowerCase().replace(' ', '-'),
+        sellerName:
+          auth.currentUser.displayName || auth.currentUser.email || "Seller",
+        status: "available",
+        condition: formData.condition.toLowerCase().replace(" ", "-"),
         type: formData.type,
         createdAt: serverTimestamp(),
         imageUrl: compressedFrontImage,
-        backCoverUrl: compressedBackImage
+        backCoverUrl: compressedBackImage,
       };
 
-      await addDoc(collection(db, 'books'), bookData);
+      await addDoc(collection(db, "books"), bookData);
 
-      const pointsToAward = formData.type === 'donation' ? REWARD_POINTS.DONATE : REWARD_POINTS.SELL;
-      const rewardType = formData.type === 'donation' ? 'donated' : 'sold';
+      const pointsToAward =
+        formData.type === "donation"
+          ? REWARD_POINTS.DONATE
+          : REWARD_POINTS.SELL;
+      const rewardType = formData.type === "donation" ? "donated" : "sold";
       await addRewardPoints(auth.currentUser.uid, pointsToAward, rewardType);
 
       setShowConfirm(false);
       setShowSuccess(true);
     } catch (err: any) {
       console.error("General error in confirmSell:", err);
-      const message = typeof err?.message === 'string' ? err.message : '';
-      const code = typeof err?.code === 'string' ? err.code : '';
+      const message = typeof err?.message === "string" ? err.message : "";
+      const code = typeof err?.code === "string" ? err.code : "";
 
       if (
-        code.includes('resource-exhausted') ||
-        code.includes('invalid-argument') ||
-        message.toLowerCase().includes('too large') ||
-        message.toLowerCase().includes('longer than') ||
-        message.toLowerCase().includes('size')
+        code.includes("resource-exhausted") ||
+        code.includes("invalid-argument") ||
+        message.toLowerCase().includes("too large") ||
+        message.toLowerCase().includes("longer than") ||
+        message.toLowerCase().includes("size")
       ) {
-        setError('Listing images are too large to save. Try retaking or uploading smaller photos.');
+        setError(
+          "Listing images are too large to save. Try retaking or uploading smaller photos.",
+        );
+      } else if (message.toLowerCase().includes("permission")) {
+        setError("Permission denied. Please check your account status.");
+      } else if (message.toLowerCase().includes("failed validation")) {
+        setError(
+          "Missing required fields. Please check title, author, price, and condition.",
+        );
       } else {
-        setError('Failed to list book.');
+        setError(
+          `Failed to list book. ${message ? `Error: ${message}` : "Please try again."}`,
+        );
       }
       setShowConfirm(false);
     } finally {
@@ -243,26 +300,39 @@ export default function BookDetailsSellScreen() {
     return (
       <div className="min-h-full bg-white flex flex-col items-center justify-center p-6">
         <div className="w-20 h-20 bg-booxie-green rounded-full flex items-center justify-center mb-6">
-          <svg className="w-10 h-10 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+          <svg
+            className="w-10 h-10 text-white"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={3}
+              d="M5 13l4 4L19 7"
+            />
           </svg>
         </div>
         <h2 className="text-2xl font-bold text-gray-900 mb-2">Thank You!</h2>
         <p className="text-gray-500 text-center mb-8">
-          Your book has been successfully listed for {formData.type === 'donation' ? 'donation' : 'sale'}.
+          Your book has been successfully listed for{" "}
+          {formData.type === "donation" ? "donation" : "sale"}.
         </p>
         <div className="w-full space-y-3">
-          <button 
-            onClick={() => navigate('/')}
+          <button
+            onClick={() => navigate("/")}
             className="w-full bg-booxie-green text-white py-4 rounded-full font-bold text-lg shadow-lg shadow-booxie-green/30 hover:bg-booxie-green-dark transition-colors"
           >
             View On Home Feed
           </button>
-          <button 
-            onClick={() => navigate(formData.type === 'donation' ? '/donations' : '/search')}
+          <button
+            onClick={() =>
+              navigate(formData.type === "donation" ? "/donations" : "/search")
+            }
             className="w-full bg-gray-100 text-gray-700 py-4 rounded-full font-bold text-lg hover:bg-gray-200 transition-colors"
           >
-            View {formData.type === 'donation' ? 'Donations' : 'Listings'}
+            View {formData.type === "donation" ? "Donations" : "Listings"}
           </button>
         </div>
       </div>
@@ -273,10 +343,15 @@ export default function BookDetailsSellScreen() {
     <div className="min-h-screen bg-[#F8F9FA] font-sans flex flex-col">
       {/* Header */}
       <div className="bg-white px-4 py-4 flex items-center justify-between sticky top-0 z-10 shadow-sm shrink-0">
-        <button onClick={() => navigate('/sell')} className="relative z-50 p-2 -ml-2 rounded-full hover:bg-gray-100">
+        <button
+          onClick={() => navigate("/sell")}
+          className="relative z-50 p-2 -ml-2 rounded-full hover:bg-gray-100"
+        >
           <ChevronLeft className="w-6 h-6 text-gray-800" />
         </button>
-        <h1 className="text-lg font-bold text-gray-900">{isEditing ? 'Adjust Details' : 'Review Listing'}</h1>
+        <h1 className="text-lg font-bold text-gray-900">
+          {isEditing ? "Adjust Details" : "Review Listing"}
+        </h1>
         <div className="w-10"></div> {/* Spacer for centering */}
       </div>
 
@@ -286,38 +361,64 @@ export default function BookDetailsSellScreen() {
           <div className="flex gap-3 overflow-x-auto pb-4 mb-2 hide-scrollbar">
             {formData.imageUrl && (
               <div className="relative shrink-0">
-                <img src={formData.imageUrl} alt="Front cover" className="h-40 w-28 object-cover rounded-xl bg-white p-1 shadow-md border border-gray-100" />
-                <span className="absolute bottom-2 left-1/2 -translate-x-1/2 bg-[#006A4E] text-white text-[9px] font-bold px-3 py-1 rounded-full whitespace-nowrap shadow-lg">FRONT</span>
+                <img
+                  src={formData.imageUrl}
+                  alt="Front cover"
+                  className="h-40 w-28 object-cover rounded-xl bg-white p-1 shadow-md border border-gray-100"
+                />
+                <span className="absolute bottom-2 left-1/2 -translate-x-1/2 bg-[#006A4E] text-white text-[9px] font-bold px-3 py-1 rounded-full whitespace-nowrap shadow-lg">
+                  FRONT
+                </span>
               </div>
             )}
             {formData.backCoverUrl && (
               <div className="relative shrink-0">
-                <img src={formData.backCoverUrl} alt="Back cover" className="h-40 w-28 object-cover rounded-xl bg-white p-1 shadow-md border border-gray-100" />
-                <span className="absolute bottom-2 left-1/2 -translate-x-1/2 bg-[#006A4E] text-white text-[9px] font-bold px-3 py-1 rounded-full whitespace-nowrap shadow-lg">BACK</span>
+                <img
+                  src={formData.backCoverUrl}
+                  alt="Back cover"
+                  className="h-40 w-28 object-cover rounded-xl bg-white p-1 shadow-md border border-gray-100"
+                />
+                <span className="absolute bottom-2 left-1/2 -translate-x-1/2 bg-[#006A4E] text-white text-[9px] font-bold px-3 py-1 rounded-full whitespace-nowrap shadow-lg">
+                  BACK
+                </span>
               </div>
             )}
-            {location.state?.scannedData?.extraImages?.map((url: string, i: number) => (
-              <div key={i} className="relative shrink-0">
-                <img src={url} alt={`Doc ${i}`} className="h-40 w-28 object-cover rounded-xl bg-white p-1 shadow-md border border-gray-100" />
-                <span className="absolute bottom-2 left-1/2 -translate-x-1/2 bg-gray-600 text-white text-[9px] font-bold px-3 py-1 rounded-full whitespace-nowrap shadow-lg">DOCUMENT</span>
-              </div>
-            ))}
+            {location.state?.scannedData?.extraImages?.map(
+              (url: string, i: number) => (
+                <div key={i} className="relative shrink-0">
+                  <img
+                    src={url}
+                    alt={`Doc ${i}`}
+                    className="h-40 w-28 object-cover rounded-xl bg-white p-1 shadow-md border border-gray-100"
+                  />
+                  <span className="absolute bottom-2 left-1/2 -translate-x-1/2 bg-gray-600 text-white text-[9px] font-bold px-3 py-1 rounded-full whitespace-nowrap shadow-lg">
+                    DOCUMENT
+                  </span>
+                </div>
+              ),
+            )}
           </div>
         )}
 
-        {error && <div className="bg-red-50 text-red-600 p-4 rounded-xl text-sm font-medium mb-4">{error}</div>}
+        {error && (
+          <div className="bg-red-50 text-red-600 p-4 rounded-xl text-sm font-medium mb-4">
+            {error}
+          </div>
+        )}
 
         {isEditing ? (
           <div className="space-y-4 pb-4">
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Book Title</label>
-              <input 
+              <label className="block text-xs font-medium text-gray-600 mb-1">
+                Book Title
+              </label>
+              <input
                 ref={titleInputRef}
-                type="text" 
+                type="text"
                 value={formData.title}
-                onChange={e => {
-                  setError('');
-                  setFormData({...formData, title: e.target.value});
+                onChange={(e) => {
+                  setError("");
+                  setFormData({ ...formData, title: e.target.value });
                 }}
                 className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-booxie-green"
               />
@@ -325,44 +426,52 @@ export default function BookDetailsSellScreen() {
 
             <div className="flex gap-3">
               <div className="flex-1">
-                <label className="block text-xs font-medium text-gray-600 mb-1">Author</label>
-                <input 
-                  type="text" 
+                <label className="block text-xs font-medium text-gray-600 mb-1">
+                  Author
+                </label>
+                <input
+                  type="text"
                   value={formData.author}
-                  onChange={e => {
-                    setError('');
-                    setFormData({...formData, author: e.target.value});
+                  onChange={(e) => {
+                    setError("");
+                    setFormData({ ...formData, author: e.target.value });
                   }}
                   className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-booxie-green"
                 />
               </div>
               <div className="flex-1">
-                <label className="block text-xs font-medium text-gray-600 mb-1">ID</label>
-                <input 
-                  type="text" 
+                <label className="block text-xs font-medium text-gray-600 mb-1">
+                  ID
+                </label>
+                <input
+                  type="text"
                   value={formData.isbn}
-                  onChange={e => setFormData({...formData, isbn: e.target.value})}
+                  onChange={(e) =>
+                    setFormData({ ...formData, isbn: e.target.value })
+                  }
                   className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-booxie-green"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-2">Book Photos</label>
+              <label className="block text-xs font-medium text-gray-600 mb-2">
+                Book Photos
+              </label>
               <div className="grid grid-cols-2 gap-3">
                 <input
                   ref={frontImageInputRef}
                   type="file"
                   accept="image/*"
                   className="hidden"
-                  onChange={handleImageUpload('imageUrl')}
+                  onChange={handleImageUpload("imageUrl")}
                 />
                 <input
                   ref={backImageInputRef}
                   type="file"
                   accept="image/*"
                   className="hidden"
-                  onChange={handleImageUpload('backCoverUrl')}
+                  onChange={handleImageUpload("backCoverUrl")}
                 />
 
                 <button
@@ -370,8 +479,8 @@ export default function BookDetailsSellScreen() {
                   onClick={() => frontImageInputRef.current?.click()}
                   className={`group overflow-hidden rounded-[24px] border text-left transition-all ${
                     formData.imageUrl
-                      ? 'border-[#006A4E]/20 bg-white shadow-sm hover:shadow-md'
-                      : 'border-dashed border-gray-300 bg-white hover:border-[#006A4E] hover:bg-[#F8FCF9]'
+                      ? "border-[#006A4E]/20 bg-white shadow-sm hover:shadow-md"
+                      : "border-dashed border-gray-300 bg-white hover:border-[#006A4E] hover:bg-[#F8FCF9]"
                   }`}
                 >
                   <div className="relative aspect-[4/5] bg-[#F8FCF9]">
@@ -393,15 +502,25 @@ export default function BookDetailsSellScreen() {
                         <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-[#E8F5F0] text-[#006A4E] shadow-sm">
                           <ImagePlus className="w-6 h-6" />
                         </div>
-                        <p className="text-sm font-bold text-gray-900">Upload Front Cover</p>
-                        <p className="mt-1 text-[11px] text-gray-500">Tap to choose the main book photo</p>
+                        <p className="text-sm font-bold text-gray-900">
+                          Upload Front Cover
+                        </p>
+                        <p className="mt-1 text-[11px] text-gray-500">
+                          Tap to choose the main book photo
+                        </p>
                       </div>
                     )}
                   </div>
                   <div className="flex items-center justify-between px-4 py-3">
                     <div>
-                      <p className="text-xs font-black uppercase tracking-[0.12em] text-gray-900">Front</p>
-                      <p className="text-[11px] text-gray-500">{formData.imageUrl ? 'Replace photo' : 'Required for listing'}</p>
+                      <p className="text-xs font-black uppercase tracking-[0.12em] text-gray-900">
+                        Front
+                      </p>
+                      <p className="text-[11px] text-gray-500">
+                        {formData.imageUrl
+                          ? "Replace photo"
+                          : "Required for listing"}
+                      </p>
                     </div>
                     <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#E8F5F0] text-[#006A4E] transition-colors group-hover:bg-[#DDF1EA]">
                       <ImagePlus className="w-4 h-4" />
@@ -414,8 +533,8 @@ export default function BookDetailsSellScreen() {
                   onClick={() => backImageInputRef.current?.click()}
                   className={`group overflow-hidden rounded-[24px] border text-left transition-all ${
                     formData.backCoverUrl
-                      ? 'border-[#006A4E]/20 bg-white shadow-sm hover:shadow-md'
-                      : 'border-dashed border-gray-300 bg-white hover:border-[#006A4E] hover:bg-[#F8FCF9]'
+                      ? "border-[#006A4E]/20 bg-white shadow-sm hover:shadow-md"
+                      : "border-dashed border-gray-300 bg-white hover:border-[#006A4E] hover:bg-[#F8FCF9]"
                   }`}
                 >
                   <div className="relative aspect-[4/5] bg-[#F8FCF9]">
@@ -437,15 +556,25 @@ export default function BookDetailsSellScreen() {
                         <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-[#E8F5F0] text-[#006A4E] shadow-sm">
                           <ImagePlus className="w-6 h-6" />
                         </div>
-                        <p className="text-sm font-bold text-gray-900">Upload Back Cover</p>
-                        <p className="mt-1 text-[11px] text-gray-500">Optional, but helpful for buyers</p>
+                        <p className="text-sm font-bold text-gray-900">
+                          Upload Back Cover
+                        </p>
+                        <p className="mt-1 text-[11px] text-gray-500">
+                          Optional, but helpful for buyers
+                        </p>
                       </div>
                     )}
                   </div>
                   <div className="flex items-center justify-between px-4 py-3">
                     <div>
-                      <p className="text-xs font-black uppercase tracking-[0.12em] text-gray-900">Back</p>
-                      <p className="text-[11px] text-gray-500">{formData.backCoverUrl ? 'Replace photo' : 'Optional upload'}</p>
+                      <p className="text-xs font-black uppercase tracking-[0.12em] text-gray-900">
+                        Back
+                      </p>
+                      <p className="text-[11px] text-gray-500">
+                        {formData.backCoverUrl
+                          ? "Replace photo"
+                          : "Optional upload"}
+                      </p>
                     </div>
                     <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#E8F5F0] text-[#006A4E] transition-colors group-hover:bg-[#DDF1EA]">
                       <ImagePlus className="w-4 h-4" />
@@ -459,7 +588,7 @@ export default function BookDetailsSellScreen() {
                   {formData.imageUrl && (
                     <button
                       type="button"
-                      onClick={() => clearImage('imageUrl')}
+                      onClick={() => clearImage("imageUrl")}
                       className="inline-flex items-center gap-1 rounded-full bg-white px-3 py-1.5 text-[11px] font-medium text-gray-600 border border-gray-200 hover:bg-gray-50"
                     >
                       Remove front
@@ -469,7 +598,7 @@ export default function BookDetailsSellScreen() {
                   {formData.backCoverUrl && (
                     <button
                       type="button"
-                      onClick={() => clearImage('backCoverUrl')}
+                      onClick={() => clearImage("backCoverUrl")}
                       className="inline-flex items-center gap-1 rounded-full bg-white px-3 py-1.5 text-[11px] font-medium text-gray-600 border border-gray-200 hover:bg-gray-50"
                     >
                       Remove back
@@ -482,7 +611,9 @@ export default function BookDetailsSellScreen() {
 
             <div>
               <div className="flex items-center justify-between mb-2">
-                <label className="block text-xs font-bold text-gray-900 uppercase tracking-widest">Book Category</label>
+                <label className="block text-xs font-bold text-gray-900 uppercase tracking-widest">
+                  Book Category
+                </label>
                 {isRecommending && (
                   <span className="flex items-center gap-1 text-[10px] text-booxie-green animate-pulse font-bold">
                     <Sparkles className="w-3 h-3" /> AI Recommending...
@@ -495,11 +626,12 @@ export default function BookDetailsSellScreen() {
                 )}
                 {quotaExceeded && (
                   <span className="flex items-center gap-1 text-[10px] text-amber-500 font-bold">
-                    <Sparkles className="w-3 h-3" /> Manual Selection Required (AI Quota Hit)
+                    <Sparkles className="w-3 h-3" /> Manual Selection Required
+                    (AI Quota Hit)
                   </span>
                 )}
               </div>
-              
+
               <div className="grid grid-cols-3 gap-2">
                 {CATEGORIES.map((cat) => {
                   const Icon = cat.icon;
@@ -508,15 +640,21 @@ export default function BookDetailsSellScreen() {
                     <button
                       key={cat.id}
                       type="button"
-                      onClick={() => setFormData({...formData, category: cat.id})}
+                      onClick={() =>
+                        setFormData({ ...formData, category: cat.id })
+                      }
                       className={`flex flex-col items-center justify-center p-3 rounded-2xl border-2 transition-all duration-300 ${
-                        isActive 
-                          ? 'border-[#006A4E] bg-[#E8F5F0] text-[#006A4E] shadow-sm' 
-                          : 'border-gray-50 bg-white text-gray-400 hover:border-gray-200'
+                        isActive
+                          ? "border-[#006A4E] bg-[#E8F5F0] text-[#006A4E] shadow-sm"
+                          : "border-gray-50 bg-white text-gray-400 hover:border-gray-200"
                       }`}
                     >
-                      <Icon className={`w-5 h-5 mb-1.5 transition-transform ${isActive ? 'scale-110' : ''}`} />
-                      <span className={`text-[10px] font-bold text-center leading-tight ${isActive ? 'text-[#006A4E]' : 'text-gray-500'}`}>
+                      <Icon
+                        className={`w-5 h-5 mb-1.5 transition-transform ${isActive ? "scale-110" : ""}`}
+                      />
+                      <span
+                        className={`text-[10px] font-bold text-center leading-tight ${isActive ? "text-[#006A4E]" : "text-gray-500"}`}
+                      >
                         {cat.id}
                       </span>
                     </button>
@@ -527,81 +665,101 @@ export default function BookDetailsSellScreen() {
 
             <div>
               <div className="flex items-center justify-between mb-2">
-                <label className="block text-xs font-bold text-gray-900 uppercase tracking-widest">Condition</label>
+                <label className="block text-xs font-bold text-gray-900 uppercase tracking-widest">
+                  Condition
+                </label>
                 <div className="hidden items-center gap-1 text-[10px] text-gray-400 font-medium sm:flex">
                   <Sparkles className="w-3 h-3" /> Auto-detected by AI
                 </div>
               </div>
               <div className="flex gap-2">
-                {CONDITIONS.map(cond => (
+                {CONDITIONS.map((cond) => (
                   <button
                     key={cond}
                     type="button"
-                    onClick={() => setFormData({ ...formData, condition: cond })}
+                    onClick={() =>
+                      setFormData({ ...formData, condition: cond })
+                    }
                     className={`flex-1 flex items-center justify-center py-3.5 rounded-2xl text-[11px] font-bold transition-all border-2 relative ${
-                      formData.condition === cond 
-                        ? 'bg-[#006A4E] text-white border-[#006A4E] shadow-lg shadow-[#006A4E]/20' 
-                        : 'bg-gray-50 text-gray-600 border-gray-100 hover:border-gray-200'
+                      formData.condition === cond
+                        ? "bg-[#006A4E] text-white border-[#006A4E] shadow-lg shadow-[#006A4E]/20"
+                        : "bg-gray-50 text-gray-600 border-gray-100 hover:border-gray-200"
                     }`}
                   >
                     {cond}
                     {formData.condition === cond && (
                       <div className="absolute -top-1.5 -right-1.5 bg-white rounded-full p-0.5 shadow-sm">
-                        <Check className="w-3 h-3 text-[#006A4E]" strokeWidth={4} />
+                        <Check
+                          className="w-3 h-3 text-[#006A4E]"
+                          strokeWidth={4}
+                        />
                       </div>
                     )}
                   </button>
                 ))}
               </div>
-              <p className="text-[10px] text-gray-400 mt-2 italic text-center">Condition starts with a scan guess when available, but you can adjust it before listing.</p>
+              <p className="text-[10px] text-gray-400 mt-2 italic text-center">
+                Condition starts with a scan guess when available, but you can
+                adjust it before listing.
+              </p>
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Listing Type</label>
+              <label className="block text-xs font-medium text-gray-600 mb-1">
+                Listing Type
+              </label>
               <div className="flex gap-2">
-                {['sale', 'donation'].map(type => (
+                {["sale", "donation"].map((type) => (
                   <button
                     key={type}
                     type="button"
-                    onClick={() => setFormData({...formData, type})}
+                    onClick={() => setFormData({ ...formData, type })}
                     className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition-colors border ${
-                      formData.type === type 
-                        ? 'bg-booxie-green text-white border-booxie-green' 
-                        : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+                      formData.type === type
+                        ? "bg-booxie-green text-white border-booxie-green"
+                        : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
                     }`}
                   >
-                    {type === 'sale' ? 'Sell' : 'Donate'}
+                    {type === "sale" ? "Sell" : "Donate"}
                   </button>
                 ))}
               </div>
             </div>
 
-            {formData.type === 'sale' && (
+            {formData.type === "sale" && (
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Price ( $ ) *</label>
+                <label className="block text-xs font-medium text-gray-600 mb-1">
+                  Price ( $ ) *
+                </label>
                 <div className="relative">
-                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-medium">$</span>
-                <input 
-                  type="number" 
-                  step="0.01"
-                  min="0"
-                  value={formData.price}
-                  onChange={e => {
-                    setError('');
-                    setFormData({...formData, price: e.target.value});
-                  }}
-                  className="w-full bg-white border border-gray-200 rounded-xl pl-8 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-booxie-green"
-                />
-              </div>
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-medium">
+                    $
+                  </span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={formData.price}
+                    onChange={(e) => {
+                      setError("");
+                      setFormData({ ...formData, price: e.target.value });
+                    }}
+                    className="w-full bg-white border border-gray-200 rounded-xl pl-8 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-booxie-green"
+                  />
+                </div>
               </div>
             )}
 
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Description</label>
-              <textarea 
+              <label className="block text-xs font-medium text-gray-600 mb-1">
+                Description
+              </label>
+              <textarea
                 rows={3}
                 value={formData.description}
-                onChange={e => setFormData({...formData, description: e.target.value})}
+                onChange={(e) =>
+                  setFormData({ ...formData, description: e.target.value })
+                }
                 className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-booxie-green"
                 placeholder="Describe the condition of the book"
               />
@@ -610,27 +768,43 @@ export default function BookDetailsSellScreen() {
         ) : (
           <div className="space-y-6 bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex-1">
             <div>
-              <h2 className="text-2xl font-bold text-gray-900">{formData.title || 'Untitled Book'}</h2>
-              <p className="text-gray-500 mt-1">{formData.author || 'Unknown Author'}</p>
+              <h2 className="text-2xl font-bold text-gray-900">
+                {formData.title || "Untitled Book"}
+              </h2>
+              <p className="text-gray-500 mt-1">
+                {formData.author || "Unknown Author"}
+              </p>
             </div>
-            
+
             <div className="flex flex-wrap gap-2">
-              <span className="bg-gray-100 text-gray-700 px-3 py-1 rounded-full text-xs font-medium">{formData.category}</span>
-              <span className="bg-gray-100 text-gray-700 px-3 py-1 rounded-full text-xs font-medium">{formData.condition}</span>
-              {formData.isbn && <span className="bg-gray-100 text-gray-700 px-3 py-1 rounded-full text-xs font-medium">ISBN: {formData.isbn}</span>}
+              <span className="bg-gray-100 text-gray-700 px-3 py-1 rounded-full text-xs font-medium">
+                {formData.category}
+              </span>
+              <span className="bg-gray-100 text-gray-700 px-3 py-1 rounded-full text-xs font-medium">
+                {formData.condition}
+              </span>
+              {formData.isbn && (
+                <span className="bg-gray-100 text-gray-700 px-3 py-1 rounded-full text-xs font-medium">
+                  ISBN: {formData.isbn}
+                </span>
+              )}
             </div>
 
             <div>
               <p className="text-sm text-gray-500 mb-1">Price</p>
               <p className="text-3xl font-bold text-booxie-green">
-                {formData.type === 'donation' ? 'Free' : `$${formData.price || '0.00'}`}
+                {formData.type === "donation"
+                  ? "Free"
+                  : `$${formData.price || "0.00"}`}
               </p>
             </div>
 
             {formData.description && (
               <div>
                 <p className="text-sm text-gray-500 mb-1">Description</p>
-                <p className="text-sm text-gray-900 leading-relaxed">{formData.description}</p>
+                <p className="text-sm text-gray-900 leading-relaxed">
+                  {formData.description}
+                </p>
               </div>
             )}
           </div>
@@ -641,13 +815,13 @@ export default function BookDetailsSellScreen() {
       <div className="p-4 bg-white border-t border-gray-100 flex gap-3 shrink-0">
         {isEditing ? (
           <>
-            <button 
+            <button
               onClick={() => setIsEditing(false)}
               className="flex-1 bg-gray-100 text-gray-700 py-3.5 rounded-full font-bold text-sm hover:bg-gray-200 transition-colors"
             >
               Cancel
             </button>
-            <button 
+            <button
               onClick={() => setIsEditing(false)}
               className="flex-1 bg-booxie-green text-white py-3.5 rounded-full font-bold text-sm shadow-md shadow-booxie-green/20 hover:bg-booxie-green-dark transition-colors"
             >
@@ -656,24 +830,24 @@ export default function BookDetailsSellScreen() {
           </>
         ) : (
           <>
-            <button 
-              onClick={() => navigate('/sell')}
+            <button
+              onClick={() => navigate("/sell")}
               className="flex-1 bg-white border border-gray-200 text-gray-700 py-3.5 rounded-full font-bold text-sm shadow-sm hover:bg-gray-50 transition-colors"
             >
-              {manualEntry ? 'Cancel' : 'Go Back'}
+              {manualEntry ? "Cancel" : "Go Back"}
             </button>
-            <button 
+            <button
               onClick={() => setIsEditing(true)}
               className="flex-1 bg-white border border-gray-200 text-gray-700 py-3.5 rounded-full font-bold text-sm shadow-sm hover:bg-gray-50 transition-colors"
             >
               Adjust
             </button>
-            <button 
+            <button
               onClick={handleSellClick}
               disabled={isSubmitting}
               className="flex-1 bg-booxie-green text-white py-3.5 rounded-full font-bold text-sm shadow-md shadow-booxie-green/20 hover:bg-booxie-green-dark transition-colors disabled:opacity-50"
             >
-              {formData.type === 'donation' ? 'Donate' : 'Sell'}
+              {formData.type === "donation" ? "Donate" : "Sell"}
             </button>
           </>
         )}
@@ -683,21 +857,25 @@ export default function BookDetailsSellScreen() {
       {showConfirm && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-xl">
-            <h3 className="text-lg font-bold text-gray-900 mb-2">Confirm Listing</h3>
-            <p className="text-gray-600 text-sm mb-6">Are you sure you want to sell this book?</p>
+            <h3 className="text-lg font-bold text-gray-900 mb-2">
+              Confirm Listing
+            </h3>
+            <p className="text-gray-600 text-sm mb-6">
+              Are you sure you want to sell this book?
+            </p>
             <div className="flex gap-3">
-              <button 
+              <button
                 onClick={() => setShowConfirm(false)}
                 className="flex-1 py-3 rounded-full font-bold text-sm text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors"
               >
                 Cancel
               </button>
-              <button 
+              <button
                 onClick={confirmSell}
                 disabled={isSubmitting}
                 className="flex-1 py-3 rounded-full font-bold text-sm text-white bg-booxie-green hover:bg-booxie-green-dark transition-colors disabled:opacity-50"
               >
-                {isSubmitting ? 'Listing...' : 'Confirm'}
+                {isSubmitting ? "Listing..." : "Confirm"}
               </button>
             </div>
           </div>
