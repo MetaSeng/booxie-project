@@ -37,7 +37,12 @@ export default function CheckoutScreen() {
   // If a single book is passed via state (Buy Now), use it. Otherwise use selected cart items.
   const singleBook = location.state?.book;
   const checkoutItems = singleBook 
-    ? [{ ...singleBook, quantity: 1, selected: true }] 
+    ? [{
+        ...singleBook,
+        image: singleBook.image || singleBook.imageUrl || 'https://via.placeholder.com/150',
+        quantity: 1,
+        selected: true
+      }] 
     : cartItems.filter(item => item.selected);
     
   const [fullName, setFullName] = useState('');
@@ -117,7 +122,7 @@ export default function CheckoutScreen() {
           title: item.title,
           price: item.price,
           quantity: item.quantity,
-          image: item.image,
+          image: item.image || item.imageUrl || 'https://via.placeholder.com/150',
           sellerId: item.sellerId,
         })),
         subtotal,

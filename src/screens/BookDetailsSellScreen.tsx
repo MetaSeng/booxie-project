@@ -22,6 +22,36 @@ const CATEGORIES = [
 
 const CONDITIONS = ['New', 'Like New', 'Good', 'Normal'];
 
+function compressDataUrlImage(src: string, maxDimension = 960, quality = 0.8): Promise<string> {
+  if (!src.startsWith('data:image/')) {
+    return Promise.resolve(src);
+  }
+
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const longestSide = Math.max(img.width, img.height) || 1;
+      const scale = Math.min(1, maxDimension / longestSide);
+      const canvas = document.createElement('canvas');
+
+      canvas.width = Math.max(1, Math.round(img.width * scale));
+      canvas.height = Math.max(1, Math.round(img.height * scale));
+
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        resolve(src);
+        return;
+      }
+
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      resolve(canvas.toDataURL('image/jpeg', quality));
+    };
+
+    img.onerror = () => resolve(src);
+    img.src = src;
+  });
+}
+
 export default function BookDetailsSellScreen() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -157,6 +187,11 @@ export default function BookDetailsSellScreen() {
         throw new Error('Please sign in with a registered account to create a listing.');
       }
 
+      const [compressedFrontImage, compressedBackImage] = await Promise.all([
+        formData.imageUrl ? compressDataUrlImage(formData.imageUrl) : Promise.resolve(''),
+        formData.backCoverUrl ? compressDataUrlImage(formData.backCoverUrl) : Promise.resolve(''),
+      ]);
+
       const bookData = {
         title: formData.title,
         author: formData.author,
@@ -170,8 +205,8 @@ export default function BookDetailsSellScreen() {
         condition: formData.condition.toLowerCase().replace(' ', '-'),
         type: formData.type,
         createdAt: serverTimestamp(),
-        imageUrl: formData.imageUrl,
-        backCoverUrl: formData.backCoverUrl
+        imageUrl: compressedFrontImage,
+        backCoverUrl: compressedBackImage
       };
 
       await addDoc(collection(db, 'books'), bookData);
@@ -182,9 +217,22 @@ export default function BookDetailsSellScreen() {
 
       setShowConfirm(false);
       setShowSuccess(true);
-    } catch (err) {
+    } catch (err: any) {
       console.error("General error in confirmSell:", err);
-      setError('Failed to list book.');
+      const message = typeof err?.message === 'string' ? err.message : '';
+      const code = typeof err?.code === 'string' ? err.code : '';
+
+      if (
+        code.includes('resource-exhausted') ||
+        code.includes('invalid-argument') ||
+        message.toLowerCase().includes('too large') ||
+        message.toLowerCase().includes('longer than') ||
+        message.toLowerCase().includes('size')
+      ) {
+        setError('Listing images are too large to save. Try retaking or uploading smaller photos.');
+      } else {
+        setError('Failed to list book.');
+      }
       setShowConfirm(false);
     } finally {
       setIsSubmitting(false);
@@ -205,16 +253,16 @@ export default function BookDetailsSellScreen() {
         </p>
         <div className="w-full space-y-3">
           <button 
-            onClick={() => navigate(formData.type === 'donation' ? '/donations' : '/search')}
+            onClick={() => navigate('/')}
             className="w-full bg-booxie-green text-white py-4 rounded-full font-bold text-lg shadow-lg shadow-booxie-green/30 hover:bg-booxie-green-dark transition-colors"
           >
-            View {formData.type === 'donation' ? 'Donations' : 'Listings'}
+            View On Home Feed
           </button>
           <button 
-            onClick={() => navigate('/')}
+            onClick={() => navigate(formData.type === 'donation' ? '/donations' : '/search')}
             className="w-full bg-gray-100 text-gray-700 py-4 rounded-full font-bold text-lg hover:bg-gray-200 transition-colors"
           >
-            Back to Home
+            View {formData.type === 'donation' ? 'Donations' : 'Listings'}
           </button>
         </div>
       </div>
