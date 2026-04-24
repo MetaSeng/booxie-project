@@ -29,7 +29,14 @@ service cloud.firestore {
              data.author is string && data.author.size() > 0 && data.author.size() < 100 &&
              (data.price is int || data.price is float) && data.price >= 0 &&
              data.sellerId is string &&
-             (!('status' in data) || data.status in ['available', 'sold']);
+             (!('status' in data) || data.status in ['available', 'sold']) &&
+             (!('category' in data) || data.category is string) &&
+             (!('condition' in data) || data.condition is string) &&
+             (!('type' in data) || data.type in ['sale', 'donation']) &&
+             (!('imageUrl' in data) || data.imageUrl is string) &&
+             (!('backCoverUrl' in data) || data.backCoverUrl is string) &&
+             (!('description' in data) || data.description is string) &&
+             (!('isbn' in data) || data.isbn is string);
     }
 
     function isValidOrderItem(item) {
