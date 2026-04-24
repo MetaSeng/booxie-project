@@ -105,7 +105,9 @@ export default function SellScreen() {
   const [cameraReady, setCameraReady] = useState(false);
   const [cameraError, setCameraError] = useState("");
   const [activeTab, setActiveTab] = useState("Front Cover");
-  const [listingType, setListingType] = useState<"sale" | "donation">((location.state as any)?.listingType || "sale");
+  const [listingType, setListingType] = useState<"sale" | "donation">(
+    (location.state as any)?.listingType || "sale",
+  );
   const [frontCoverData, setFrontCoverData] = useState<any>(null);
   const [frontCoverImage, setFrontCoverImage] = useState<string | null>(null);
   const [backCoverImage, setBackCoverImage] = useState<string | null>(null);

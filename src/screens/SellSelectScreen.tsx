@@ -1,31 +1,31 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Camera, Edit3, ChevronLeft } from 'lucide-react';
-import { motion } from 'motion/react';
+import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { Camera, Edit3, ChevronLeft } from "lucide-react";
+import { motion } from "motion/react";
 
 export default function SellSelectScreen() {
   const navigate = useNavigate();
-  const [listingType, setListingType] = useState<'sale' | 'donation'>('sale');
+  const [listingType, setListingType] = useState<"sale" | "donation">("sale");
 
   const goToScan = () => {
-    navigate('/sell/scan', { state: { listingType } });
+    navigate("/sell/scan", { state: { listingType } });
   };
 
   const goToManual = () => {
-    navigate('/sell/details', {
+    navigate("/sell/details", {
       state: {
         manualEntry: true,
         scannedData: {
-          title: '',
-          author: '',
-          description: '',
-          price: listingType === 'donation' ? 0 : '',
+          title: "",
+          author: "",
+          description: "",
+          price: listingType === "donation" ? 0 : "",
           type: listingType,
-          condition: 'Good',
-          imageUrl: '',
-          backCoverUrl: ''
-        }
-      }
+          condition: "Good",
+          imageUrl: "",
+          backCoverUrl: "",
+        },
+      },
     });
   };
 
@@ -34,7 +34,7 @@ export default function SellSelectScreen() {
       {/* Header */}
       <div className="pt-6 px-6 flex items-center justify-between">
         <button
-          onClick={() => navigate('/')}
+          onClick={() => navigate("/")}
           className="p-2 -ml-2 rounded-full hover:bg-white/10 transition-colors"
         >
           <ChevronLeft className="w-6 h-6 text-white" />
@@ -47,21 +47,21 @@ export default function SellSelectScreen() {
       <div className="px-6 py-4">
         <div className="flex bg-white/10 backdrop-blur-xl rounded-2xl p-1.5 shadow-xl border border-white/15">
           <button
-            onClick={() => setListingType('sale')}
+            onClick={() => setListingType("sale")}
             className={`flex-1 px-6 py-2.5 rounded-xl text-sm font-bold transition-all duration-300 ${
-              listingType === 'sale'
-                ? 'bg-white text-[#1A8765] shadow-lg'
-                : 'text-white/80 hover:text-white'
+              listingType === "sale"
+                ? "bg-white text-[#1A8765] shadow-lg"
+                : "text-white/80 hover:text-white"
             }`}
           >
             SELL
           </button>
           <button
-            onClick={() => setListingType('donation')}
+            onClick={() => setListingType("donation")}
             className={`flex-1 px-6 py-2.5 rounded-xl text-sm font-bold transition-all duration-300 ${
-              listingType === 'donation'
-                ? 'bg-white text-[#1A8765] shadow-lg'
-                : 'text-white/80 hover:text-white'
+              listingType === "donation"
+                ? "bg-white text-[#1A8765] shadow-lg"
+                : "text-white/80 hover:text-white"
             }`}
           >
             DONATE
@@ -72,7 +72,9 @@ export default function SellSelectScreen() {
       {/* Main Content */}
       <div className="flex-1 flex flex-col items-center justify-center px-6 pb-12">
         <div className="text-center mb-12">
-          <h2 className="text-3xl font-bold text-white mb-2">How would you like to add a book?</h2>
+          <h2 className="text-3xl font-bold text-white mb-2">
+            How would you like to add a book?
+          </h2>
           <p className="text-white/70">Choose the fastest method for you</p>
         </div>
 
@@ -111,7 +113,9 @@ export default function SellSelectScreen() {
                 <Edit3 className="w-8 h-8 text-white" />
               </div>
               <div>
-                <h3 className="text-lg font-bold text-gray-900">Manual Entry</h3>
+                <h3 className="text-lg font-bold text-gray-900">
+                  Manual Entry
+                </h3>
                 <p className="text-sm text-gray-600 mt-1">
                   Manually enter details and upload images
                 </p>
@@ -123,7 +127,9 @@ export default function SellSelectScreen() {
         {/* Features List */}
         <div className="mt-12 max-w-sm w-full">
           <div className="bg-white/10 backdrop-blur-md rounded-2xl border border-white/15 p-6">
-            <h4 className="text-sm font-bold text-white/80 uppercase tracking-wide mb-4">Why list with us?</h4>
+            <h4 className="text-sm font-bold text-white/80 uppercase tracking-wide mb-4">
+              Why list with us?
+            </h4>
             <ul className="space-y-2 text-sm text-white/70">
               <li className="flex items-start gap-2">
                 <span className="text-[#7FE2C4] font-bold mt-0.5">✓</span>
