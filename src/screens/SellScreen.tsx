@@ -406,12 +406,12 @@ export default function SellScreen() {
         </button>
       </div>
 
-      <div className="px-6 pb-2 shrink-0">
+      <div className="px-6 py-3 shrink-0">
         <button
           onClick={handleManualListing}
-          className="w-full rounded-2xl border border-white/25 bg-white/10 px-5 py-3 text-sm font-bold text-white backdrop-blur-md hover:bg-white/15 transition-colors"
+          className="w-full rounded-2xl border-2 border-white/40 bg-white/15 px-5 py-3.5 text-base font-bold text-white backdrop-blur-md hover:bg-white/25 transition-all active:scale-95 shadow-lg"
         >
-          Enter Book Details Manually
+          ✎ Enter Details Manually
         </button>
       </div>
 
