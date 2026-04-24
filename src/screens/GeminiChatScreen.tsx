@@ -6,7 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import { motion } from 'motion/react';
 import { isGeminiQuotaError, GEMINI_QUOTA_ERROR_MESSAGE } from '../lib/geminiErrors';
-import { collection, query, where, getDocs, limit, orderBy } from 'firebase/firestore';
+import { collection, query, getDocs, limit, orderBy } from 'firebase/firestore';
 import { db } from '../firebase';
 
 const PROMPT_CHIPS = [
@@ -23,6 +23,7 @@ interface BookResult {
   price: number;
   imageUrl?: string;
   condition: string;
+  status?: 'available' | 'sold';
   rating?: number;
 }
 
@@ -253,7 +254,6 @@ export default function GeminiChatScreen() {
           const booksRef = collection(db, 'books');
           const q = query(
             booksRef, 
-            where('status', '==', 'available'),
             limit(20)
           );
           
@@ -365,6 +365,11 @@ export default function GeminiChatScreen() {
                 <Star className="w-2.5 h-2.5 text-[#FFB800] fill-[#FFB800]" />
                 <span className="text-[10px] font-bold text-gray-800">5.0</span>
               </div>
+              {book.status === 'sold' && (
+                <div className="absolute left-2 top-2 rounded-full bg-gray-900/85 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-white">
+                  Sold
+                </div>
+              )}
             </div>
             
             <div className="px-1 flex-1 flex flex-col">
@@ -372,7 +377,9 @@ export default function GeminiChatScreen() {
               <p className="text-[10px] text-gray-500 font-medium truncate mb-2">{book.author}</p>
               
               <div className="mt-auto flex items-center justify-between">
-                <span className="text-sm font-black text-[#006A4E]">{book.price}$</span>
+                <span className="text-sm font-black text-[#006A4E]">
+                  {book.status === 'sold' ? 'Sold' : `${book.price}$`}
+                </span>
                 <button 
                   onClick={() => navigate(`/book/${book.id}`)}
                   className="bg-[#006A4E] text-white p-2 rounded-xl hover:bg-[#005C44] transition-colors shadow-sm"

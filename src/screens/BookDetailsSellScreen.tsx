@@ -21,6 +21,7 @@ import { addRewardPoints, REWARD_POINTS } from "../lib/rewards";
 import { motion, AnimatePresence } from "motion/react";
 import { isGeminiQuotaError } from "../lib/geminiErrors";
 import { getGeminiAI } from "../lib/gemini";
+import { useAuth } from "../context/AuthContext";
 
 const CATEGORIES = [
   { id: "Textbook", icon: BookOpen },
@@ -73,6 +74,7 @@ function compressDataUrlImage(
 export default function BookDetailsSellScreen() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { profile, user } = useAuth();
   const manualEntry = Boolean(location.state?.manualEntry);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -220,10 +222,16 @@ export default function BookDetailsSellScreen() {
     setError("");
 
     try {
-      if (!auth.currentUser) {
-        throw new Error(
-          "Please sign in with a registered account to create a listing.",
-        );
+      const sellerId = auth.currentUser?.uid || profile?.uid || user?.uid;
+      const sellerName =
+        auth.currentUser?.displayName ||
+        auth.currentUser?.email ||
+        user?.displayName ||
+        profile?.name ||
+        "Guest Seller";
+
+      if (!sellerId) {
+        throw new Error("Unable to identify the seller for this listing.");
       }
 
       const [compressedFrontImage, compressedBackImage] = await Promise.all([
@@ -242,9 +250,8 @@ export default function BookDetailsSellScreen() {
         isbn: formData.isbn,
         description: formData.description,
         price: formData.type === "donation" ? 0 : Number(formData.price),
-        sellerId: auth.currentUser.uid,
-        sellerName:
-          auth.currentUser.displayName || auth.currentUser.email || "Seller",
+        sellerId,
+        sellerName,
         status: "available",
         condition: formData.condition.toLowerCase().replace(" ", "-"),
         type: formData.type,
@@ -260,7 +267,10 @@ export default function BookDetailsSellScreen() {
           ? REWARD_POINTS.DONATE
           : REWARD_POINTS.SELL;
       const rewardType = formData.type === "donation" ? "donated" : "sold";
-      await addRewardPoints(auth.currentUser.uid, pointsToAward, rewardType);
+
+      if (auth.currentUser?.uid) {
+        await addRewardPoints(auth.currentUser.uid, pointsToAward, rewardType);
+      }
 
       setShowConfirm(false);
       setShowSuccess(true);

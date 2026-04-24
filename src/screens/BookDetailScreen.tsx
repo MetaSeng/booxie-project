@@ -83,7 +83,7 @@ export default function BookDetailScreen() {
   };
 
   const handleAddToCart = () => {
-    if (book) {
+    if (book && book.status !== 'sold') {
       addToCart({ ...book, originalPrice: book.originalPrice || book.price * 1.5 });
       navigate('/cart');
     }
@@ -150,12 +150,21 @@ export default function BookDetailScreen() {
 
             <div className="flex items-end gap-2 mb-4">
               <span className="text-xl font-bold text-red-500">
-                {book.type === 'donation' ? 'Free' : `${book.price}$`}
+                {book.status === 'sold'
+                  ? 'Sold'
+                  : book.type === 'donation'
+                    ? 'Free'
+                    : `${book.price}$`}
               </span>
               {book.originalPrice && (
                 <span className="text-sm text-gray-400 line-through mb-0.5">{book.originalPrice}$</span>
               )}
             </div>
+            {book.status === 'sold' && (
+              <div className="mb-4 rounded-xl bg-gray-100 px-4 py-3 text-sm font-medium text-gray-700">
+                This listing stays on the feed, but the book has already been sold.
+              </div>
+            )}
             
             <div className="w-full h-px bg-gray-200 mb-4"></div>
 
@@ -223,9 +232,10 @@ export default function BookDetailScreen() {
             <div className="flex flex-wrap gap-2 mt-8">
               <button 
                 onClick={handleAddToCart}
-                className="flex-1 min-w-[120px] bg-gray-100 text-gray-900 rounded-full font-bold text-sm py-3.5 flex items-center justify-center hover:bg-gray-200 transition-colors"
+                disabled={book.status === 'sold'}
+                className="flex-1 min-w-[120px] bg-gray-100 text-gray-900 rounded-full font-bold text-sm py-3.5 flex items-center justify-center hover:bg-gray-200 transition-colors disabled:cursor-not-allowed disabled:bg-gray-200 disabled:text-gray-500"
               >
-                Add to cart
+                {book.status === 'sold' ? 'Sold Out' : 'Add to cart'}
               </button>
 
               <button 

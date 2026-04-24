@@ -17,6 +17,7 @@ interface BookListing {
   type: string;
   sellerName: string;
   sellerId: string;
+  status?: 'available' | 'sold';
   createdAt?: any;
 }
 
@@ -56,7 +57,6 @@ export default function HomeScreen() {
 
     let q = query(
       collection(db, 'books'),
-      where('status', '==', 'available'),
       ...(selectedGenre !== 'All' ? [where('category', '==', selectedGenre)] : []),
       orderBy('createdAt', 'desc'),
       limit(6)
@@ -217,6 +217,11 @@ export default function HomeScreen() {
                         <BookOpen className="w-8 h-8 text-gray-300" />
                       </div>
                     )}
+                    {book.status === 'sold' && (
+                      <div className="absolute left-5 top-5 rounded-full bg-gray-900/85 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-white">
+                        Sold
+                      </div>
+                    )}
                   </div>
                   
                   <h4 className="font-medium text-gray-900 text-sm line-clamp-2 mb-1 leading-tight h-10">{book.title}</h4>
@@ -241,12 +246,14 @@ export default function HomeScreen() {
                     <button 
                       onClick={(e) => {
                         e.stopPropagation();
+                        if (book.status === 'sold') return;
                         addToCart({ ...book, originalPrice: book.price * 1.5 });
                         navigate('/cart');
                       }}
-                      className="bg-[#006A4E] text-white text-[10px] font-bold p-2 px-3 rounded-xl hover:bg-[#005C44] transition-colors shadow-sm"
+                      disabled={book.status === 'sold'}
+                      className="bg-[#006A4E] text-white text-[10px] font-bold p-2 px-3 rounded-xl hover:bg-[#005C44] transition-colors shadow-sm disabled:cursor-not-allowed disabled:bg-gray-300"
                     >
-                      Buy
+                      {book.status === 'sold' ? 'Sold' : 'Buy'}
                     </button>
                   </div>
                 </motion.div>

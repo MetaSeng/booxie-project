@@ -17,6 +17,7 @@ interface BookListing {
   condition: string;
   type: string;
   sellerName: string;
+  status?: 'available' | 'sold';
   rating?: number;
 }
 
@@ -34,7 +35,7 @@ export default function SearchScreen() {
     const fetchInitialData = async () => {
       setIsSearching(true);
       try {
-        const q = query(collection(db, 'books'), where('status', '==', 'available'));
+        const q = query(collection(db, 'books'));
         const querySnapshot = await getDocs(q);
         const booksData = querySnapshot.docs.map(doc => ({
           id: doc.id,
@@ -56,7 +57,7 @@ export default function SearchScreen() {
     setIsSearching(true);
     
     try {
-      const q = query(collection(db, 'books'), where('status', '==', 'available'));
+      const q = query(collection(db, 'books'));
       const querySnapshot = await getDocs(q);
       
       const booksData = querySnapshot.docs.map(doc => ({
@@ -103,7 +104,7 @@ export default function SearchScreen() {
     setSelectedFilters(newFilters);
     
     try {
-      let q = query(collection(db, 'books'), where('status', '==', 'available'));
+      let q = query(collection(db, 'books'));
       
       // Apply all active filters
       Object.entries(newFilters).forEach(([f, val]) => {
@@ -283,6 +284,11 @@ export default function SearchScreen() {
                       <span className="text-gray-400 text-xs">No image</span>
                     </div>
                   )}
+                  {book.status === 'sold' && (
+                    <div className="absolute left-3 top-3 rounded-full bg-gray-900/85 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-white">
+                      Sold
+                    </div>
+                  )}
                   <button 
                     className="absolute top-3 right-3 p-1.5 bg-white rounded-full text-gray-400 hover:text-red-500 transition-colors shadow-sm"
                     onClick={(e) => {
@@ -328,12 +334,14 @@ export default function SearchScreen() {
                     <button 
                       onClick={(e) => {
                         e.stopPropagation();
+                        if (book.status === 'sold') return;
                         addToCart({ ...book, originalPrice: book.oldPrice || book.price * 1.5 });
                         navigate('/cart');
                       }}
-                      className="w-full bg-[#006A4E] text-white text-xs font-bold py-2.5 rounded-xl hover:bg-[#00523B] transition-colors shadow-sm active:scale-95 duration-200"
+                      disabled={book.status === 'sold'}
+                      className="w-full bg-[#006A4E] text-white text-xs font-bold py-2.5 rounded-xl hover:bg-[#00523B] transition-colors shadow-sm active:scale-95 duration-200 disabled:cursor-not-allowed disabled:bg-gray-300"
                     >
-                      Add to Cart
+                      {book.status === 'sold' ? 'Sold Out' : 'Add to Cart'}
                     </button>
                   </div>
                 </div>

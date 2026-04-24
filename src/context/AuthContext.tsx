@@ -11,6 +11,19 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType>({ user: null, profile: null, loading: true });
 
+function getLocalGuestUid() {
+  const storageKey = 'guestSellerId';
+  const existingId = localStorage.getItem(storageKey);
+
+  if (existingId) {
+    return existingId;
+  }
+
+  const generatedId = `guest-${Math.random().toString(36).slice(2, 12)}`;
+  localStorage.setItem(storageKey, generatedId);
+  return generatedId;
+}
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<any | null>(null);
@@ -75,7 +88,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (localGuest === 'true' && isDemoModeEnabled()) {
           setUser(null);
           setProfile({
-            uid: 'local-guest',
+            uid: getLocalGuestUid(),
             name: 'Alex (Guest)',
             email: 'guest@booxie.local',
             photoURL: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Guest',

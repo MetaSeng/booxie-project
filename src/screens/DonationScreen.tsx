@@ -14,6 +14,7 @@ interface BookListing {
   condition: string;
   type: string;
   sellerName: string;
+  status?: 'available' | 'sold';
   rating?: number;
 }
 
@@ -28,7 +29,6 @@ export default function DonationScreen() {
       try {
         const q = query(
           collection(db, 'books'), 
-          where('status', '==', 'available'),
           where('type', '==', 'donation'),
           orderBy('createdAt', 'desc')
         );
@@ -100,7 +100,7 @@ export default function DonationScreen() {
                     </div>
                   )}
                   <div className="absolute top-2 left-2 bg-[#006A4E] text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm">
-                    FREE
+                    {book.status === 'sold' ? 'DONATED' : 'FREE'}
                   </div>
                 </div>
                 
@@ -122,9 +122,10 @@ export default function DonationScreen() {
                   <div className="mt-auto">
                     <p className="text-[10px] text-gray-500 mb-2">Shared by {book.sellerName}</p>
                     <button 
+                      disabled={book.status === 'sold'}
                       className="w-full bg-[#006A4E] text-white text-xs font-medium py-2 rounded-lg hover:bg-[#00523B] transition-colors"
                     >
-                      Request Now
+                      {book.status === 'sold' ? 'Already Claimed' : 'Request Now'}
                     </button>
                   </div>
                 </div>
