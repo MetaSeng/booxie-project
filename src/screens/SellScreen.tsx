@@ -95,6 +95,7 @@ function parseScanJson<T>(rawText: string | undefined): T | null {
 
 export default function SellScreen() {
   const navigate = useNavigate();
+  const location = useLocation();
   const webcamRef = useRef<Webcam>(null);
   const isScanningRef = useRef(false);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -104,7 +105,7 @@ export default function SellScreen() {
   const [cameraReady, setCameraReady] = useState(false);
   const [cameraError, setCameraError] = useState("");
   const [activeTab, setActiveTab] = useState("Front Cover");
-  const [listingType, setListingType] = useState<"sale" | "donation">("sale");
+  const [listingType, setListingType] = useState<"sale" | "donation">((location.state as any)?.listingType || "sale");
   const [frontCoverData, setFrontCoverData] = useState<any>(null);
   const [frontCoverImage, setFrontCoverImage] = useState<string | null>(null);
   const [backCoverImage, setBackCoverImage] = useState<string | null>(null);

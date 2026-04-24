@@ -12,6 +12,7 @@ import LoginScreen from './screens/LoginScreen';
 import SignupScreen from './screens/SignupScreen';
 import HomeScreen from './screens/HomeScreen';
 import SearchScreen from './screens/SearchScreen';
+import SellSelectScreen from './screens/SellSelectScreen';
 import SellScreen from './screens/SellScreen';
 import BookDetailScreen from './screens/BookDetailScreen';
 import ChatListScreen from './screens/ChatListScreen';
@@ -129,7 +130,8 @@ export default function App() {
               <Route path="/" element={<RootRedirect />}>
                 <Route index element={<HomeScreen />} />
                 <Route path="search" element={<SearchScreen />} />
-                <Route path="sell" element={<ProtectedRoute><SellScreen /></ProtectedRoute>} />
+                <Route path="sell" element={<ProtectedRoute><SellSelectScreen /></ProtectedRoute>} />
+                <Route path="sell/scan" element={<ProtectedRoute><SellScreen /></ProtectedRoute>} />
                 <Route path="sell/edit" element={<ProtectedRoute><ScanEditScreen /></ProtectedRoute>} />
                 <Route path="sell/details" element={<ProtectedRoute><BookDetailsSellScreen /></ProtectedRoute>} />
                 <Route path="book/:id" element={<BookDetailScreen />} />
