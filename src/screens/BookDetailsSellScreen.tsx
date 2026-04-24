@@ -25,6 +25,7 @@ const CONDITIONS = ['New', 'Like New', 'Good', 'Normal'];
 export default function BookDetailsSellScreen() {
   const navigate = useNavigate();
   const location = useLocation();
+  const manualEntry = Boolean(location.state?.manualEntry);
   
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isRecommending, setIsRecommending] = useState(false);
@@ -33,7 +34,7 @@ export default function BookDetailsSellScreen() {
   const [error, setError] = useState('');
   const [showConfirm, setShowConfirm] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
-  const [isEditing, setIsEditing] = useState(false);
+  const [isEditing, setIsEditing] = useState(manualEntry || !location.state?.scannedData);
   const titleInputRef = React.useRef<HTMLInputElement>(null);
   
   const [formData, setFormData] = useState({
@@ -105,6 +106,18 @@ export default function BookDetailsSellScreen() {
   };
 
   const handleSellClick = () => {
+    if (!formData.title.trim() || !formData.author.trim()) {
+      setError('Please add at least the book title and author before listing.');
+      setIsEditing(true);
+      return;
+    }
+
+    if (formData.type === 'sale' && !formData.price) {
+      setError('Please enter a price for sale listings.');
+      setIsEditing(true);
+      return;
+    }
+
     setShowConfirm(true);
   };
 
@@ -113,6 +126,10 @@ export default function BookDetailsSellScreen() {
     setError('');
 
     try {
+      if (!auth.currentUser) {
+        throw new Error('Please sign in with a registered account to create a listing.');
+      }
+
       const bookData = {
         title: formData.title,
         author: formData.author,
@@ -120,8 +137,8 @@ export default function BookDetailsSellScreen() {
         isbn: formData.isbn,
         description: formData.description,
         price: formData.type === 'donation' ? 0 : Number(formData.price),
-        sellerId: auth.currentUser?.uid || 'guest-demo-id',
-        sellerName: auth.currentUser?.displayName || 'Alex (Guest)',
+        sellerId: auth.currentUser.uid,
+        sellerName: auth.currentUser.displayName || auth.currentUser.email || 'Seller',
         status: 'available',
         condition: formData.condition.toLowerCase().replace(' ', '-'),
         type: formData.type,
@@ -130,19 +147,11 @@ export default function BookDetailsSellScreen() {
         backCoverUrl: formData.backCoverUrl
       };
 
-      // Try to save to Firestore, but proceed even if it fails (for guest demo)
-      try {
-        await addDoc(collection(db, 'books'), bookData);
-        
-        // Award points if logged in
-        if (auth.currentUser) {
-          const pointsToAward = formData.type === 'donation' ? REWARD_POINTS.DONATE : REWARD_POINTS.SELL;
-          const rewardType = formData.type === 'donation' ? 'donated' : 'sold';
-          await addRewardPoints(auth.currentUser.uid, pointsToAward, rewardType);
-        }
-      } catch (fsErr) {
-        console.warn("Firestore save skipped or failed in guest mode:", fsErr);
-      }
+      await addDoc(collection(db, 'books'), bookData);
+
+      const pointsToAward = formData.type === 'donation' ? REWARD_POINTS.DONATE : REWARD_POINTS.SELL;
+      const rewardType = formData.type === 'donation' ? 'donated' : 'sold';
+      await addRewardPoints(auth.currentUser.uid, pointsToAward, rewardType);
 
       setShowConfirm(false);
       setShowSuccess(true);
@@ -231,7 +240,10 @@ export default function BookDetailsSellScreen() {
                 ref={titleInputRef}
                 type="text" 
                 value={formData.title}
-                onChange={e => setFormData({...formData, title: e.target.value})}
+                onChange={e => {
+                  setError('');
+                  setFormData({...formData, title: e.target.value});
+                }}
                 className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-booxie-green"
               />
             </div>
@@ -242,7 +254,10 @@ export default function BookDetailsSellScreen() {
                 <input 
                   type="text" 
                   value={formData.author}
-                  onChange={e => setFormData({...formData, author: e.target.value})}
+                  onChange={e => {
+                    setError('');
+                    setFormData({...formData, author: e.target.value});
+                  }}
                   className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-booxie-green"
                 />
               </div>
@@ -255,6 +270,17 @@ export default function BookDetailsSellScreen() {
                   className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-booxie-green"
                 />
               </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Cover Image URL</label>
+              <input 
+                type="text" 
+                value={formData.imageUrl}
+                onChange={e => setFormData({...formData, imageUrl: e.target.value})}
+                className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-booxie-green"
+                placeholder="https://..."
+              />
             </div>
 
             <div>
@@ -358,15 +384,18 @@ export default function BookDetailsSellScreen() {
                 <label className="block text-xs font-medium text-gray-600 mb-1">Price ( $ ) *</label>
                 <div className="relative">
                   <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-medium">$</span>
-                  <input 
-                    type="number" 
-                    step="0.01"
-                    min="0"
-                    value={formData.price}
-                    onChange={e => setFormData({...formData, price: e.target.value})}
-                    className="w-full bg-white border border-gray-200 rounded-xl pl-8 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-booxie-green"
-                  />
-                </div>
+                <input 
+                  type="number" 
+                  step="0.01"
+                  min="0"
+                  value={formData.price}
+                  onChange={e => {
+                    setError('');
+                    setFormData({...formData, price: e.target.value});
+                  }}
+                  className="w-full bg-white border border-gray-200 rounded-xl pl-8 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-booxie-green"
+                />
+              </div>
               </div>
             )}
 
@@ -434,7 +463,7 @@ export default function BookDetailsSellScreen() {
               onClick={() => navigate('/sell')}
               className="flex-1 bg-white border border-gray-200 text-gray-700 py-3.5 rounded-full font-bold text-sm shadow-sm hover:bg-gray-50 transition-colors"
             >
-              Go Back
+              {manualEntry ? 'Cancel' : 'Go Back'}
             </button>
             <button 
               onClick={() => setIsEditing(true)}

@@ -2,17 +2,18 @@ import { GoogleGenAI } from "@google/genai";
 
 let aiInstance: GoogleGenAI | null = null;
 
+function getEnvValue(key: string): string | undefined {
+  const viteEnv = (import.meta as any).env;
+  if (viteEnv?.[key]) return viteEnv[key];
+  if (typeof process !== 'undefined' && process.env?.[key]) return process.env[key];
+  return undefined;
+}
+
 export function getGeminiAI(): GoogleGenAI | null {
   if (!aiInstance) {
-    // Try to get API key from process.env (Vite define) or import.meta.env
-    let apiKey = (typeof process !== 'undefined' && process.env?.GEMINI_API_KEY) || 
-                   (import.meta as any).env?.VITE_GEMINI_API_KEY ||
-                   (import.meta as any).env?.GEMINI_API_KEY;
-                   
-    // If key is missing or invalid, use the hardcoded fallback
-    if (!apiKey || apiKey === 'undefined' || apiKey === 'MY_GEMINI_API_KEY' || apiKey === '') {
-      apiKey = process.env.GEMINI_API_KEY;
-    }
+    const apiKey =
+      getEnvValue('VITE_GEMINI_API_KEY') ||
+      getEnvValue('GEMINI_API_KEY');
     
     if (!apiKey) return null;
     

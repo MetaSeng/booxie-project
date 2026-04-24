@@ -13,6 +13,21 @@ import { getFirestore, doc, setDoc, getDoc, serverTimestamp } from 'firebase/fir
 import { getStorage } from 'firebase/storage';
 import firebaseConfig from '../firebase-applet-config.json';
 
+function getEnvValue(key: string): string | undefined {
+  const viteEnv = (import.meta as any).env;
+  if (viteEnv?.[key]) return viteEnv[key];
+  if (typeof process !== 'undefined' && process.env?.[key]) return process.env[key];
+  return undefined;
+}
+
+export const isDemoModeEnabled = () => {
+  const explicitFlag = getEnvValue('VITE_ENABLE_DEMO_MODE') ?? getEnvValue('ENABLE_DEMO_MODE');
+  if (explicitFlag != null) {
+    return explicitFlag === 'true';
+  }
+  return Boolean((import.meta as any).env?.DEV);
+};
+
 if (!firebaseConfig || !firebaseConfig.apiKey || firebaseConfig.apiKey === 'TODO_KEYHERE') {
   console.error("Firebase configuration is missing or invalid. Please check firebase-applet-config.json");
 }
@@ -114,9 +129,17 @@ export const logInWithEmail = async (email: string, pass: string) => {
  * This bypasses the 'anonymous auth disabled' error by using a real email/pass account.
  */
 export const logInAsDemo = async () => {
-  const demoEmail = 'alex.demo@booxie.app';
-  const demoPass = 'booxie123demo';
-  const demoName = 'Alex (Demo)';
+  if (!isDemoModeEnabled()) {
+    throw new Error('Demo mode is disabled for this environment.');
+  }
+
+  const demoEmail = getEnvValue('VITE_DEMO_EMAIL') || getEnvValue('DEMO_EMAIL');
+  const demoPass = getEnvValue('VITE_DEMO_PASSWORD') || getEnvValue('DEMO_PASSWORD');
+  const demoName = getEnvValue('VITE_DEMO_NAME') || getEnvValue('DEMO_NAME') || 'Alex (Demo)';
+
+  if (!demoEmail || !demoPass) {
+    throw new Error('Demo mode is enabled, but demo credentials are not configured.');
+  }
 
   try {
     // Try logging in

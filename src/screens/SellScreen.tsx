@@ -6,6 +6,8 @@ import { Loader2, ReceiptText, FileText, Book, BookOpen, FileSearch, Check, Came
 import { isGeminiQuotaError } from '../lib/geminiErrors';
 import { motion, AnimatePresence } from 'motion/react';
 
+const SCAN_MODEL = 'gemini-2.5-flash';
+
 const SCAN_TYPES = [
   { id: 'Front Cover', icon: Book, priority: 'priority' },
   { id: 'Back Cover', icon: BookOpen, priority: 'priority' },
@@ -13,6 +15,40 @@ const SCAN_TYPES = [
   { id: 'Bank Invoice', icon: FileText, priority: 'optional' },
   { id: 'Website Page', icon: FileSearch, priority: 'optional' },
 ];
+
+type FrontCoverScanResult = {
+  detected: boolean;
+  title?: string;
+  author?: string;
+  description?: string;
+  price?: number;
+};
+
+type BackCoverScanResult = {
+  detected: boolean;
+};
+
+function extractJsonPayload(text: string): string {
+  const cleaned = text.replace(/```json/gi, '').replace(/```/g, '').trim();
+  const firstBrace = cleaned.indexOf('{');
+  const lastBrace = cleaned.lastIndexOf('}');
+
+  if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+    return cleaned.slice(firstBrace, lastBrace + 1);
+  }
+
+  return cleaned;
+}
+
+function parseScanJson<T>(rawText: string | undefined): T | null {
+  if (!rawText) return null;
+
+  try {
+    return JSON.parse(extractJsonPayload(rawText)) as T;
+  } catch {
+    return null;
+  }
+}
 
 export default function SellScreen() {
   const navigate = useNavigate();
@@ -82,6 +118,64 @@ export default function SellScreen() {
     }
   }, [activeIndex]);
 
+  const analyzeFrontCover = useCallback(async (base64String: string) => {
+    const ai = getGeminiAI();
+    if (!ai) return null;
+
+    const response = await ai.models.generateContent({
+      model: SCAN_MODEL,
+      contents: {
+        parts: [
+          { text: 'Analyze this camera frame. Determine whether it clearly shows the FRONT COVER of a single physical book. If yes, extract the visible title and author, add a short marketplace-friendly description, and suggest a reasonable resale price between 3 and 9 USD. Return JSON only.' },
+          { inlineData: { data: base64String, mimeType: 'image/jpeg' } }
+        ]
+      },
+      config: {
+        responseMimeType: 'application/json',
+        responseSchema: {
+          type: 'OBJECT',
+          properties: {
+            detected: { type: 'BOOLEAN' },
+            title: { type: 'STRING' },
+            author: { type: 'STRING' },
+            description: { type: 'STRING' },
+            price: { type: 'NUMBER' }
+          },
+          required: ['detected']
+        }
+      }
+    });
+
+    return parseScanJson<FrontCoverScanResult>(response.text);
+  }, []);
+
+  const analyzeBackCover = useCallback(async (base64String: string) => {
+    const ai = getGeminiAI();
+    if (!ai) return null;
+
+    const response = await ai.models.generateContent({
+      model: SCAN_MODEL,
+      contents: {
+        parts: [
+          { text: 'Analyze this camera frame. Determine whether it clearly shows the BACK COVER or back page of a single physical book. Return JSON only.' },
+          { inlineData: { data: base64String, mimeType: 'image/jpeg' } }
+        ]
+      },
+      config: {
+        responseMimeType: 'application/json',
+        responseSchema: {
+          type: 'OBJECT',
+          properties: {
+            detected: { type: 'BOOLEAN' }
+          },
+          required: ['detected']
+        }
+      }
+    });
+
+    return parseScanJson<BackCoverScanResult>(response.text);
+  }, []);
+
   const captureAndAnalyze = useCallback(async (isManual = false) => {
     if (isScanningRef.current || !webcamRef.current) return;
     if (!cameraReady) {
@@ -104,6 +198,8 @@ export default function SellScreen() {
     try {
       const ai = getGeminiAI();
       if (!ai) {
+        setAutoScanEnabled(false);
+        setError('AI scanning is not configured. Add `VITE_GEMINI_API_KEY` to enable automatic detection.');
         if (isManual) {
           if (activeTab === 'Front Cover') {
             const fallbackData = buildFallbackFrontCoverData();
@@ -129,97 +225,60 @@ export default function SellScreen() {
       }
 
       if (activeTab === 'Front Cover') {
-        const response = await ai.models.generateContent({
-          model: 'gemini-3-flash-preview',
-          contents: {
-            parts: [
-              { text: 'Analyze this camera frame. Is there a clear Book FRONT COVER visible? If yes, extract: title, author, description, and suggested price (3-9 USD). Return ONLY a JSON object: {"detected": boolean, "title": string, "author": string, "description": string, "price": number}. If no definite book front cover is visible, return {"detected": false}.' },
-              { inlineData: { data: base64String, mimeType: 'image/jpeg' } }
-            ]
-          }
-        });
+        const data = await analyzeFrontCover(base64String);
 
-        let text = response.text || '{}';
-        text = text.replace(/```json/gi, '').replace(/```/g, '').trim();
-        
-        try {
-          const data = JSON.parse(text);
-          if (data.detected) {
-            setFrontCoverData({
-              ...data,
-              type: listingType,
-              price: listingType === 'donation' ? 0 : data.price
-            });
-            setFrontCoverImage(imageSrc);
-            frontCoverRef.current = imageSrc;
-            // Smooth 2026 UX transition
-            setTimeout(() => {
-              setActiveTab('Back Cover');
-            }, 1000);
-          } else if (isManual) {
-            const fallbackData = buildFallbackFrontCoverData();
-            setFrontCoverData(fallbackData);
-            setFrontCoverImage(imageSrc);
-            frontCoverRef.current = imageSrc;
+        if (data?.detected) {
+          setError('');
+          setFrontCoverData({
+            title: data.title?.trim() || 'Untitled Book',
+            author: data.author?.trim() || 'Unknown Author',
+            description: data.description?.trim() || '',
+            type: listingType,
+            price: listingType === 'donation'
+              ? 0
+              : Math.min(9, Math.max(3, Number(data.price) || 5)),
+            condition: 'Good',
+          });
+          setFrontCoverImage(imageSrc);
+          frontCoverRef.current = imageSrc;
+          setTimeout(() => {
             setActiveTab('Back Cover');
-          }
-        } catch (e) {
-          if (isManual) {
-            const fallbackData = buildFallbackFrontCoverData();
-            setFrontCoverData(fallbackData);
-            setFrontCoverImage(imageSrc);
-            frontCoverRef.current = imageSrc;
-            setActiveTab('Back Cover');
-          }
+          }, 1000);
+        } else if (isManual) {
+          const fallbackData = buildFallbackFrontCoverData();
+          setFrontCoverData(fallbackData);
+          setFrontCoverImage(imageSrc);
+          frontCoverRef.current = imageSrc;
+          setActiveTab('Back Cover');
+        } else if (!data) {
+          setError('AI scan returned an unreadable result. Tap the shutter to continue manually.');
         }
       } else if (activeTab === 'Back Cover') {
-        const response = await ai.models.generateContent({
-          model: 'gemini-3-flash-preview',
-          contents: {
-            parts: [
-              { text: 'Analyze this camera frame. Is there a clear Book BACK COVER or back page visible? Return ONLY a JSON object: {"detected": boolean}. If no clear back cover is visible, return {"detected": false}.' },
-              { inlineData: { data: base64String, mimeType: 'image/jpeg' } }
-            ]
-          }
-        });
+        const data = await analyzeBackCover(base64String);
 
-        let text = response.text || '{}';
-        text = text.replace(/```json/gi, '').replace(/```/g, '').trim();
-        
-        try {
-          const data = JSON.parse(text);
-          if (data.detected) {
-            setBackCoverImage(imageSrc);
-            backCoverRef.current = imageSrc;
-            setTimeout(() => {
-              navigate('/sell/edit', { 
-                state: { 
-                  images: [frontCoverRef.current, imageSrc, receiptRef.current].filter(Boolean), 
-                  frontCoverData 
-                } 
-              });
-            }, 1500); 
-          } else if (isManual) {
-            setBackCoverImage(imageSrc);
-            backCoverRef.current = imageSrc;
-            navigate('/sell/edit', {
-              state: {
-                images: [frontCoverRef.current, imageSrc, receiptRef.current].filter(Boolean),
-                frontCoverData: frontCoverData || buildFallbackFrontCoverData(),
-              }
+        if (data?.detected) {
+          setError('');
+          setBackCoverImage(imageSrc);
+          backCoverRef.current = imageSrc;
+          setTimeout(() => {
+            navigate('/sell/edit', { 
+              state: { 
+                images: [frontCoverRef.current, imageSrc, receiptRef.current].filter(Boolean), 
+                frontCoverData: frontCoverData || buildFallbackFrontCoverData()
+              } 
             });
-          }
-        } catch (e) {
-          if (isManual) {
-            setBackCoverImage(imageSrc);
-            backCoverRef.current = imageSrc;
-            navigate('/sell/edit', {
-              state: {
-                images: [frontCoverRef.current, imageSrc, receiptRef.current].filter(Boolean),
-                frontCoverData: frontCoverData || buildFallbackFrontCoverData(),
-              }
-            });
-          }
+          }, 1500); 
+        } else if (isManual) {
+          setBackCoverImage(imageSrc);
+          backCoverRef.current = imageSrc;
+          navigate('/sell/edit', {
+            state: {
+              images: [frontCoverRef.current, imageSrc, receiptRef.current].filter(Boolean),
+              frontCoverData: frontCoverData || buildFallbackFrontCoverData(),
+            }
+          });
+        } else if (!data) {
+          setError('AI scan returned an unreadable result. Tap the shutter to continue manually.');
         }
       } else if (activeTab === 'Receipt') {
         setReceiptImage(imageSrc);
@@ -232,12 +291,14 @@ export default function SellScreen() {
         setError('Gemini API quota exceeded. Please try again in 1 minute or use a different network.');
       } else if (isManual) {
         setError('Failed to scan. Please try again with better lighting.');
+      } else {
+        setError('Automatic AI scan failed. Tap the shutter to continue manually.');
       }
     } finally {
       isScanningRef.current = false;
       setIsScanning(false);
     }
-  }, [activeTab, buildFallbackFrontCoverData, cameraReady, frontCoverData, listingType, navigate]);
+  }, [activeTab, analyzeBackCover, analyzeFrontCover, buildFallbackFrontCoverData, cameraReady, frontCoverData, listingType, navigate]);
 
   useEffect(() => {
     let timeoutId: NodeJS.Timeout;
@@ -254,6 +315,23 @@ export default function SellScreen() {
 
   const handleManualCapture = () => captureAndAnalyze(true);
   const handleDone = () => navigate('/');
+  const handleManualListing = () => {
+    navigate('/sell/details', {
+      state: {
+        manualEntry: true,
+        scannedData: {
+          title: '',
+          author: '',
+          description: '',
+          price: listingType === 'donation' ? 0 : '',
+          type: listingType,
+          condition: 'Good',
+          imageUrl: '',
+          backCoverUrl: ''
+        }
+      }
+    });
+  };
 
   return (
     <div className="fixed inset-0 bg-[#1A8765] z-50 flex flex-col font-sans overflow-hidden text-white">
@@ -286,6 +364,15 @@ export default function SellScreen() {
           className="px-6 py-2 bg-white/10 backdrop-blur-md border border-white/30 rounded-xl text-white text-sm font-bold hover:bg-white/20 transition-all active:scale-95 shadow-lg"
         >
           Done
+        </button>
+      </div>
+
+      <div className="px-6 pb-2 shrink-0">
+        <button
+          onClick={handleManualListing}
+          className="w-full rounded-2xl border border-white/25 bg-white/10 px-5 py-3 text-sm font-bold text-white backdrop-blur-md hover:bg-white/15 transition-colors"
+        >
+          Enter Book Details Manually
         </button>
       </div>
 
@@ -354,7 +441,7 @@ export default function SellScreen() {
             className="mt-6 bg-red-500 text-white px-6 py-3 rounded-2xl text-[11px] font-black uppercase tracking-wider text-center shadow-2xl border border-red-400 max-w-xs z-50"
           >
             {error}
-            <button onClick={() => setError('')} className="ml-4 text-white/60 hover:text-white transition-colors">✕</button>
+            <button onClick={() => setError('')} className="ml-4 text-white/60 hover:text-white transition-colors">x</button>
           </motion.div>
         )}
       </div>

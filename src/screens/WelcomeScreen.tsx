@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'motion/react';
 import BooxieLogo from '../components/BooxieLogo';
-import { logInAsDemo, signInWithGoogle } from '../firebase';
+import { isDemoModeEnabled, logInAsDemo, signInWithGoogle } from '../firebase';
 import { Loader2 } from 'lucide-react';
 
 export default function WelcomeScreen() {
@@ -28,6 +28,11 @@ export default function WelcomeScreen() {
   };
 
   const handleGuestContinue = async () => {
+    if (!isDemoModeEnabled()) {
+      setError('Guest mode is unavailable in this environment.');
+      return;
+    }
+
     try {
       setIsGuestLoading(true);
       setError('');

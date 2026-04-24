@@ -25,6 +25,7 @@ import OrderSuccessScreen from './screens/OrderSuccessScreen';
 import OrderConfirmationScreen from './screens/OrderConfirmationScreen';
 import ReceiptScreen from './screens/ReceiptScreen';
 import ProfileScreen from './screens/ProfileScreen';
+import OrdersScreen from './screens/OrdersScreen';
 import BookDetailsSellScreen from './screens/BookDetailsSellScreen';
 import ScanEditScreen from './screens/ScanEditScreen';
 import DonationScreen from './screens/DonationScreen';
@@ -80,6 +81,24 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+function AdminRoute({ children }: { children: React.ReactNode }) {
+  const { profile, user, loading } = useAuth();
+
+  if (loading) {
+    return <LoadingScreen />;
+  }
+
+  const isAdmin =
+    profile?.role === 'admin' ||
+    user?.email === 'sh6025010078@camtech.edu.kh';
+
+  if (!isAdmin) {
+    return <Navigate to="/" replace />;
+  }
+
+  return <>{children}</>;
+}
+
 function RootRedirect() {
   const { user, loading } = useAuth();
   const location = useLocation();
@@ -130,16 +149,16 @@ export default function App() {
                 <Route path="settings" element={<ProtectedRoute><PlaceholderScreen title="Settings" /></ProtectedRoute>} />
                 <Route path="edit-profile" element={<ProtectedRoute><PlaceholderScreen title="Edit Profile" /></ProtectedRoute>} />
                 <Route path="membership" element={<ProtectedRoute><PlaceholderScreen title="Membership" /></ProtectedRoute>} />
-                <Route path="orders" element={<ProtectedRoute><PlaceholderScreen title="My Orders" /></ProtectedRoute>} />
+                <Route path="orders" element={<ProtectedRoute><OrdersScreen /></ProtectedRoute>} />
                 <Route path="donations" element={<DonationScreen />} />
                 <Route path="favorites" element={<ProtectedRoute><PlaceholderScreen title="Favorites" /></ProtectedRoute>} />
-                <Route path="order/:id" element={<ProtectedRoute><PlaceholderScreen title="Order Details" /></ProtectedRoute>} />
+                <Route path="order/:id" element={<ProtectedRoute><ReceiptScreen /></ProtectedRoute>} />
                 <Route path="leaderboard" element={<ProtectedRoute><PlaceholderScreen title="Leaderboard" /></ProtectedRoute>} />
                 <Route path="earn-points" element={<ProtectedRoute><PlaceholderScreen title="Earn Points" /></ProtectedRoute>} />
               </Route>
 
               {/* Admin Routes */}
-              <Route path="/admin" element={<ProtectedRoute><AdminLayout /></ProtectedRoute>}>
+              <Route path="/admin" element={<ProtectedRoute><AdminRoute><AdminLayout /></AdminRoute></ProtectedRoute>}>
                 <Route index element={<AdminDashboardScreen />} />
                 <Route path="users" element={<AdminUsersScreen />} />
                 <Route path="listings" element={<AdminListingsScreen />} />

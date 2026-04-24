@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { ArrowLeft, MapPin, Truck, CreditCard, CheckCircle2, ChevronDown, Search, LocateFixed, Clock, Store } from 'lucide-react';
+import { ArrowLeft, MapPin, Truck, CreditCard, ChevronDown, Search, LocateFixed, Store } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { doc, updateDoc } from 'firebase/firestore';
-import { db, auth, handleFirestoreError, OperationType } from '../firebase';
+import { auth } from '../firebase';
 import { AbaPayIcon, AcledaPayIcon, CashIcon } from '../components/PaymentIcons';
 import { useCart } from '../context/CartContext';
 import BooxieLogo from '../components/BooxieLogo';
 import { addRewardPoints, REWARD_POINTS } from '../lib/rewards';
+import { createOrder } from '../lib/orders';
 
 const COUNTRIES = [
   { code: '+855', flag: '🇰🇭', name: 'Cambodia' },
@@ -98,46 +98,39 @@ export default function CheckoutScreen() {
 
   const handleConfirmOrder = async () => {
     if (checkoutItems.length === 0) {
-      navigate('/receipt');
+      setErrorMessage('Your checkout is empty.');
+      return;
+    }
+
+    if (!auth.currentUser) {
+      setErrorMessage('Please sign in with a real account before placing an order.');
+      setShowConfirmation(false);
       return;
     }
 
     setIsProcessing(true);
     try {
-      // Update all items in checkout (simulated for guest)
-      for (const item of checkoutItems) {
-        if (item.id) {
-          try {
-            const bookRef = doc(db, 'books', item.id);
-            await updateDoc(bookRef, {
-              status: 'sold'
-            });
-          } catch (fsErr) {
-            console.warn("Firestore update skipped for guest:", fsErr);
-          }
-        }
-      }
-
-      const orderData = {
-        orderId: 'BX' + Math.random().toString(36).substr(2, 9).toUpperCase(),
-        date: new Date().toLocaleDateString('en-US', { 
-          year: 'numeric', 
-          month: 'long', 
-          day: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit'
-        }),
-        items: checkoutItems,
-        subtotal: subtotal,
-        deliveryFee: deliveryFee,
-        total: total,
-        paymentMethod: paymentMethod,
+      const createdOrder = await createOrder({
+        userId: auth.currentUser.uid,
+        items: checkoutItems.map((item) => ({
+          bookId: item.id,
+          title: item.title,
+          price: item.price,
+          quantity: item.quantity,
+          image: item.image,
+          sellerId: item.sellerId,
+        })),
+        subtotal,
+        deliveryFee,
+        total,
+        paymentMethod,
+        deliveryMethod,
         shippingAddress: {
           name: fullName,
           phone: `${country.code} ${phone}`,
-          address: address
-        }
-      };
+          address,
+        },
+      });
 
       if (!singleBook) {
         clearCart();
@@ -149,20 +142,13 @@ export default function CheckoutScreen() {
         await addRewardPoints(auth.currentUser.uid, pointsToAward, 'purchased');
       }
 
-      navigate('/receipt', { state: { orderData } });
+      navigate('/receipt', { state: { orderId: createdOrder.id } });
     } catch (error) {
       console.error("Purchase processing error:", error);
-      // Fallback for demo: go to receipt anyway if it's just a permissions issue
-      const orderData = {
-        orderId: 'DEMO-' + Math.random().toString(36).substr(2, 6).toUpperCase(),
-        date: new Date().toLocaleDateString(),
-        items: checkoutItems,
-        total: total,
-        isDemo: true
-      };
-      navigate('/receipt', { state: { orderData } });
+      setErrorMessage('We could not save your order. Please try again.');
     } finally {
       setIsProcessing(false);
+      setShowConfirmation(false);
     }
   };
 

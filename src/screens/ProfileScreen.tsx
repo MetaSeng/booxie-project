@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { logOut } from '../firebase';
 import { Settings, LogOut, Package, Heart, Star, Award, MessageCircle } from 'lucide-react';
+import { fetchUserOrders, OrderRecord } from '../lib/orders';
 
 const ORDER_TABS = ['Orders', 'Listing', 'Coupon'];
 
@@ -10,6 +11,41 @@ export default function ProfileScreen() {
   const { user, profile } = useAuth();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('Orders');
+  const [orders, setOrders] = useState<OrderRecord[]>([]);
+  const [ordersLoading, setOrdersLoading] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+
+    const loadOrders = async () => {
+      if (!user?.uid) {
+        if (active) {
+          setOrders([]);
+          setOrdersLoading(false);
+        }
+        return;
+      }
+
+      setOrdersLoading(true);
+      try {
+        const loadedOrders = await fetchUserOrders(user.uid);
+        if (active) {
+          setOrders(loadedOrders);
+        }
+      } catch (error) {
+        console.error("Failed to load orders", error);
+      } finally {
+        if (active) {
+          setOrdersLoading(false);
+        }
+      }
+    };
+
+    void loadOrders();
+    return () => {
+      active = false;
+    };
+  }, [user?.uid]);
 
   const handleLogout = async () => {
     try {
@@ -141,7 +177,7 @@ export default function ProfileScreen() {
           >
             <Package className="w-6 h-6 text-gray-900" />
             <span className="text-xs font-bold text-gray-900">My Order</span>
-            <span className="text-[10px] text-gray-400">3 Active</span>
+            <span className="text-[10px] text-gray-400">{orders.length} Total</span>
           </button>
           <button 
             onClick={() => navigate('/donations')}
@@ -182,30 +218,48 @@ export default function ProfileScreen() {
         <div>
           {activeTab === 'Orders' && (
             <div className="space-y-4">
-              {/* Mock Order Card */}
-              <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm relative">
-                <div className="flex justify-between items-start mb-3">
-                  <div>
-                    <p className="text-sm font-bold text-gray-900">Order #12345</p>
-                    <p className="text-xs text-gray-500 mt-0.5">Placed on Nov 10, 2025</p>
-                  </div>
-                  <span className="px-3 py-1 bg-[#006A4E] text-white text-[10px] font-bold rounded-full">Delivered</span>
+              {ordersLoading && (
+                <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm text-center text-sm text-gray-500">
+                  Loading orders...
                 </div>
-                
-                <button 
-                  onClick={() => navigate('/order/12345')}
-                  className="flex gap-4 items-center mt-4 text-left w-full"
-                >
-                  <div className="w-16 h-24 bg-gray-100 rounded-lg overflow-hidden shrink-0">
-                    <img src="https://images.unsplash.com/photo-1544947950-fa07a98d237f?auto=format&fit=crop&q=80&w=100&h=150" alt="Book" className="w-full h-full object-cover" />
+              )}
+              {!ordersLoading && orders.length === 0 && (
+                <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm text-center text-sm text-gray-500">
+                  No orders yet.
+                </div>
+              )}
+              {!ordersLoading && orders.map((order) => {
+                const firstItem = order.items[0];
+                return (
+                  <div key={order.id} className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm relative">
+                    <div className="flex justify-between items-start mb-3">
+                      <div>
+                        <p className="text-sm font-bold text-gray-900">{order.orderId}</p>
+                        <p className="text-xs text-gray-500 mt-0.5">{order.items.length} item{order.items.length === 1 ? '' : 's'}</p>
+                      </div>
+                      <span className="px-3 py-1 bg-[#006A4E] text-white text-[10px] font-bold rounded-full capitalize">{order.status}</span>
+                    </div>
+                    
+                    <button 
+                      onClick={() => navigate(`/order/${order.id}`)}
+                      className="flex gap-4 items-center mt-4 text-left w-full"
+                    >
+                      <div className="w-16 h-24 bg-gray-100 rounded-lg overflow-hidden shrink-0">
+                        {firstItem?.image ? (
+                          <img src={firstItem.image} alt={firstItem.title} className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full bg-[#E8F5F0]"></div>
+                        )}
+                      </div>
+                      <div className="flex-1">
+                        <h4 className="text-sm font-bold text-gray-900 line-clamp-2 leading-tight">{firstItem?.title || 'Order items'}</h4>
+                        <p className="text-xs text-gray-500 mt-1">Status: {order.status}</p>
+                        <p className="text-base font-bold text-[#006A4E] mt-2">${order.total.toFixed(2)}</p>
+                      </div>
+                    </button>
                   </div>
-                  <div className="flex-1">
-                    <h4 className="text-sm font-bold text-gray-900 line-clamp-2 leading-tight">Before the coffee gets cold</h4>
-                    <p className="text-xs text-gray-500 mt-1">Condition: Good</p>
-                    <p className="text-base font-bold text-[#006A4E] mt-2">10$</p>
-                  </div>
-                </button>
-              </div>
+                );
+              })}
             </div>
           )}
           {activeTab === 'Listing' && (

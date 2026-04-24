@@ -32,6 +32,37 @@ service cloud.firestore {
              (!('status' in data) || data.status in ['available', 'sold']);
     }
 
+    function isValidOrderItem(item) {
+      return item.bookId is string &&
+             item.title is string &&
+             (item.price is int || item.price is float) &&
+             item.quantity is int &&
+             item.image is string;
+    }
+
+    function isValidShippingAddress(address) {
+      return address.name is string &&
+             address.phone is string &&
+             address.address is string;
+    }
+
+    function isValidOrder(data) {
+      return data.orderId is string &&
+             data.userId is string &&
+             data.items is list &&
+             data.items.size() > 0 &&
+             data.items[0] is map &&
+             isValidOrderItem(data.items[0]) &&
+             (data.subtotal is int || data.subtotal is float) &&
+             (data.deliveryFee is int || data.deliveryFee is float) &&
+             (data.total is int || data.total is float) &&
+             data.paymentMethod is string &&
+             data.deliveryMethod is string &&
+             data.shippingAddress is map &&
+             isValidShippingAddress(data.shippingAddress) &&
+             data.status in ['confirmed', 'completed', 'cancelled'];
+    }
+
     function isValidPost(data) {
       return data.authorId is string &&
              data.authorName is string &&
@@ -48,14 +79,44 @@ service cloud.firestore {
     }
     match /books/{bookId} {
       allow read: if true;
-      allow create: if true; // Allow guests to "simulate" selling in demo
-      allow update: if true; 
+      allow create: if isAuthenticated() &&
+        request.resource.data.sellerId == request.auth.uid &&
+        isValidBook(request.resource.data);
+      allow update: if isAuthenticated() &&
+        isValidBook(request.resource.data) &&
+        request.resource.data.sellerId == resource.data.sellerId &&
+        (
+          resource.data.sellerId == request.auth.uid ||
+          isAdmin() ||
+          (
+            resource.data.status == 'available' &&
+            request.resource.data.status == 'sold' &&
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'orderId', 'updatedAt'])
+          )
+        );
       allow delete: if isAuthenticated() && (resource.data.sellerId == request.auth.uid || isAdmin());
+    }
+    match /orders/{orderId} {
+      allow create: if isAuthenticated() &&
+        request.resource.data.userId == request.auth.uid &&
+        isValidOrder(request.resource.data);
+      allow read: if isAuthenticated() &&
+        (resource.data.userId == request.auth.uid || isAdmin());
+      allow update: if isAuthenticated() &&
+        isValidOrder(request.resource.data) &&
+        (resource.data.userId == request.auth.uid || isAdmin());
     }
     match /communityPosts/{postId} {
       allow read: if true;
-      allow create: if true; // Allow guests to post in demo
-      allow update: if isValidPost(request.resource.data); 
+      allow create: if isAuthenticated() &&
+        request.resource.data.authorId == request.auth.uid &&
+        isValidPost(request.resource.data);
+      allow update: if isAuthenticated() &&
+        isValidPost(request.resource.data) &&
+        (
+          resource.data.authorId == request.auth.uid ||
+          isAdmin()
+        );
       allow delete: if isAdmin() || (isAuthenticated() && resource.data.authorId == request.auth.uid) || resource.data.authorId.size() != 28;
     }
     match /conversations/{convId} {

@@ -96,14 +96,6 @@ export default function HomeScreen() {
     }
   };
 
-  // Use some mock books if empty to show the design
-  const displayBooks = books.length > 0 ? books : [
-    { id: '1', title: 'International Advance Mathematics', author: 'Author 1', price: 1.125, condition: 'good', type: 'sale', sellerName: 'Seller 1', sellerId: '1', imageUrl: 'https://images.unsplash.com/photo-1543002588-bfa74002ed7e?auto=format&fit=crop&q=80&w=300&h=400' },
-    { id: '2', title: 'Book set 12', author: 'Author 2', price: 6.25, condition: 'good', type: 'sale', sellerName: 'Seller 2', sellerId: '2', imageUrl: 'https://images.unsplash.com/photo-1532012197267-da84d127e765?auto=format&fit=crop&q=80&w=300&h=400' },
-    { id: '3', title: 'Khmer Literature', author: 'Author 3', price: 1.00, condition: 'Intermediate', type: 'sale', sellerName: 'Seller 3', sellerId: '3', imageUrl: 'https://images.unsplash.com/photo-1589829085413-56de8ae18c73?auto=format&fit=crop&q=80&w=300&h=400' },
-    { id: '4', title: 'TOEFL Practice', author: 'Author 4', price: 2.00, condition: 'Intermediate', type: 'sale', sellerName: 'Seller 4', sellerId: '4', imageUrl: 'https://images.unsplash.com/photo-1544947950-fa07a98d237f?auto=format&fit=crop&q=80&w=300&h=400' },
-  ];
-
   return (
     <div className="p-4 font-sans bg-[#F8FCF9] min-h-full pb-24 relative">
       {/* Hero Section */}
@@ -184,10 +176,24 @@ export default function HomeScreen() {
               Show all books
             </button>
           </div>
+        ) : books.length === 0 ? (
+          <div className="bg-white rounded-3xl p-8 border border-dashed border-gray-200 flex flex-col items-center justify-center text-center">
+            <div className="w-12 h-12 bg-[#E8F5F0] rounded-2xl flex items-center justify-center mb-3">
+              <BookOpen className="w-6 h-6 text-[#006A4E]" />
+            </div>
+            <h4 className="text-sm font-bold text-gray-800">No books listed yet</h4>
+            <p className="text-xs text-gray-500 mt-1 max-w-[240px]">Seller-created books will appear here as soon as someone lists their first book.</p>
+            <button
+              onClick={() => navigate('/sell/details', { state: { manualEntry: true, scannedData: { type: 'sale', condition: 'Good', price: '', title: '', author: '', description: '' } } })}
+              className="mt-4 text-booxie-green text-xs font-bold underline"
+            >
+              Add the first listing
+            </button>
+          </div>
         ) : (
           <div className="grid grid-cols-2 gap-4">
             <AnimatePresence>
-              {displayBooks.map((book, idx) => (
+              {books.map((book, idx) => (
                 <motion.div 
                   key={book.id} 
                   initial={{ opacity: 0, scale: 0.95 }}

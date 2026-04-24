@@ -20,6 +20,7 @@ export default function ChatScreen() {
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
+  const [statusMessage, setStatusMessage] = useState('');
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -228,14 +229,26 @@ export default function ChatScreen() {
       await updateDoc(doc(db, 'books', conversation.bookId), {
         status: 'sold'
       });
-      alert('Book marked as sold!');
+      setStatusMessage('Book marked as sold.');
     } catch (error) {
       console.error(error);
+      setStatusMessage('Could not update the listing status.');
     }
   };
 
   return (
     <div className="flex flex-col h-full bg-[#F8FCF9] font-sans">
+      {statusMessage && (
+        <div className="fixed top-4 left-4 right-4 z-50 bg-white border border-gray-200 text-gray-700 p-4 rounded-2xl shadow-lg text-sm">
+          <div className="flex items-center justify-between gap-4">
+            <p>{statusMessage}</p>
+            <button onClick={() => setStatusMessage('')} className="text-xs font-bold text-[#006A4E]">
+              Dismiss
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="bg-white px-4 py-3 flex items-center justify-between shadow-sm z-10 sticky top-0">
         <div className="flex items-center gap-3">

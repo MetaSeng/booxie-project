@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User, onAuthStateChanged } from 'firebase/auth';
 import { doc, getDoc, setDoc, serverTimestamp, onSnapshot } from 'firebase/firestore';
-import { auth, db, handleFirestoreError, OperationType } from '../firebase';
+import { auth, db, isDemoModeEnabled } from '../firebase';
 
 interface AuthContextType {
   user: User | null;
@@ -72,7 +72,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         
         // Check for local guest mode fallback
         const localGuest = localStorage.getItem('guestMode');
-        if (localGuest === 'true') {
+        if (localGuest === 'true' && isDemoModeEnabled()) {
           setUser(null);
           setProfile({
             uid: 'local-guest',
@@ -90,6 +90,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           });
           setLoading(false);
         } else {
+          localStorage.removeItem('guestMode');
           setUser(null);
           setProfile(null);
           setLoading(false);
