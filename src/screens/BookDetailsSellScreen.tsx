@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db, auth, handleFirestoreError, OperationType } from '../firebase';
-import { ChevronLeft, ChevronDown, Sparkles, BookOpen, GraduationCap, Microscope, Globe, ScrollText, Library, Languages, Check } from 'lucide-react';
+import { ChevronLeft, ChevronDown, Sparkles, BookOpen, GraduationCap, Microscope, Globe, ScrollText, Library, Languages, Check, ImagePlus, X } from 'lucide-react';
 import { addRewardPoints, REWARD_POINTS } from '../lib/rewards';
 import { motion, AnimatePresence } from 'motion/react';
 import { isGeminiQuotaError } from '../lib/geminiErrors';
@@ -36,6 +36,8 @@ export default function BookDetailsSellScreen() {
   const [showSuccess, setShowSuccess] = useState(false);
   const [isEditing, setIsEditing] = useState(manualEntry || !location.state?.scannedData);
   const titleInputRef = React.useRef<HTMLInputElement>(null);
+  const frontImageInputRef = React.useRef<HTMLInputElement>(null);
+  const backImageInputRef = React.useRef<HTMLInputElement>(null);
   
   const [formData, setFormData] = useState({
     title: '',
@@ -71,6 +73,31 @@ export default function BookDetailsSellScreen() {
       }
     }
   }, [location.state]);
+
+  const handleImageUpload = (field: 'imageUrl' | 'backCoverUrl') => (
+    (event: React.ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = () => {
+        setFormData(prev => ({
+          ...prev,
+          [field]: typeof reader.result === 'string' ? reader.result : prev[field]
+        }));
+      };
+      reader.readAsDataURL(file);
+
+      event.target.value = '';
+    }
+  );
+
+  const clearImage = (field: 'imageUrl' | 'backCoverUrl') => {
+    setFormData(prev => ({
+      ...prev,
+      [field]: ''
+    }));
+  };
 
   const recommendCategory = async (title: string, author: string, desc: string) => {
     setIsRecommending(true);
@@ -273,14 +300,136 @@ export default function BookDetailsSellScreen() {
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Cover Image URL</label>
-              <input 
-                type="text" 
-                value={formData.imageUrl}
-                onChange={e => setFormData({...formData, imageUrl: e.target.value})}
-                className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-booxie-green"
-                placeholder="https://..."
-              />
+              <label className="block text-xs font-medium text-gray-600 mb-2">Book Photos</label>
+              <div className="grid grid-cols-2 gap-3">
+                <input
+                  ref={frontImageInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleImageUpload('imageUrl')}
+                />
+                <input
+                  ref={backImageInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleImageUpload('backCoverUrl')}
+                />
+
+                <button
+                  type="button"
+                  onClick={() => frontImageInputRef.current?.click()}
+                  className={`group overflow-hidden rounded-[24px] border text-left transition-all ${
+                    formData.imageUrl
+                      ? 'border-[#006A4E]/20 bg-white shadow-sm hover:shadow-md'
+                      : 'border-dashed border-gray-300 bg-white hover:border-[#006A4E] hover:bg-[#F8FCF9]'
+                  }`}
+                >
+                  <div className="relative aspect-[4/5] bg-[#F8FCF9]">
+                    {formData.imageUrl ? (
+                      <>
+                        <img
+                          src={formData.imageUrl}
+                          alt="Front cover preview"
+                          className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+                        />
+                        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/65 via-black/10 to-transparent px-3 pb-3 pt-8">
+                          <span className="inline-flex rounded-full bg-white/90 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-[#006A4E]">
+                            Front Cover
+                          </span>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="flex h-full flex-col items-center justify-center px-4 text-center">
+                        <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-[#E8F5F0] text-[#006A4E] shadow-sm">
+                          <ImagePlus className="w-6 h-6" />
+                        </div>
+                        <p className="text-sm font-bold text-gray-900">Upload Front Cover</p>
+                        <p className="mt-1 text-[11px] text-gray-500">Tap to choose the main book photo</p>
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex items-center justify-between px-4 py-3">
+                    <div>
+                      <p className="text-xs font-black uppercase tracking-[0.12em] text-gray-900">Front</p>
+                      <p className="text-[11px] text-gray-500">{formData.imageUrl ? 'Replace photo' : 'Required for listing'}</p>
+                    </div>
+                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#E8F5F0] text-[#006A4E] transition-colors group-hover:bg-[#DDF1EA]">
+                      <ImagePlus className="w-4 h-4" />
+                    </div>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => backImageInputRef.current?.click()}
+                  className={`group overflow-hidden rounded-[24px] border text-left transition-all ${
+                    formData.backCoverUrl
+                      ? 'border-[#006A4E]/20 bg-white shadow-sm hover:shadow-md'
+                      : 'border-dashed border-gray-300 bg-white hover:border-[#006A4E] hover:bg-[#F8FCF9]'
+                  }`}
+                >
+                  <div className="relative aspect-[4/5] bg-[#F8FCF9]">
+                    {formData.backCoverUrl ? (
+                      <>
+                        <img
+                          src={formData.backCoverUrl}
+                          alt="Back cover preview"
+                          className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+                        />
+                        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/65 via-black/10 to-transparent px-3 pb-3 pt-8">
+                          <span className="inline-flex rounded-full bg-white/90 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-[#006A4E]">
+                            Back Cover
+                          </span>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="flex h-full flex-col items-center justify-center px-4 text-center">
+                        <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-[#E8F5F0] text-[#006A4E] shadow-sm">
+                          <ImagePlus className="w-6 h-6" />
+                        </div>
+                        <p className="text-sm font-bold text-gray-900">Upload Back Cover</p>
+                        <p className="mt-1 text-[11px] text-gray-500">Optional, but helpful for buyers</p>
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex items-center justify-between px-4 py-3">
+                    <div>
+                      <p className="text-xs font-black uppercase tracking-[0.12em] text-gray-900">Back</p>
+                      <p className="text-[11px] text-gray-500">{formData.backCoverUrl ? 'Replace photo' : 'Optional upload'}</p>
+                    </div>
+                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#E8F5F0] text-[#006A4E] transition-colors group-hover:bg-[#DDF1EA]">
+                      <ImagePlus className="w-4 h-4" />
+                    </div>
+                  </div>
+                </button>
+              </div>
+
+              {(formData.imageUrl || formData.backCoverUrl) && (
+                <div className="mt-3 flex flex-wrap gap-2 rounded-2xl bg-white/70 p-2.5 border border-gray-100">
+                  {formData.imageUrl && (
+                    <button
+                      type="button"
+                      onClick={() => clearImage('imageUrl')}
+                      className="inline-flex items-center gap-1 rounded-full bg-white px-3 py-1.5 text-[11px] font-medium text-gray-600 border border-gray-200 hover:bg-gray-50"
+                    >
+                      Remove front
+                      <X className="w-3 h-3" />
+                    </button>
+                  )}
+                  {formData.backCoverUrl && (
+                    <button
+                      type="button"
+                      onClick={() => clearImage('backCoverUrl')}
+                      className="inline-flex items-center gap-1 rounded-full bg-white px-3 py-1.5 text-[11px] font-medium text-gray-600 border border-gray-200 hover:bg-gray-50"
+                    >
+                      Remove back
+                      <X className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
 
             <div>

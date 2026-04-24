@@ -2,7 +2,7 @@ import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom';
 import Webcam from 'react-webcam';
 import { getGeminiAI } from '../lib/gemini';
-import { Loader2, ReceiptText, FileText, Book, BookOpen, FileSearch, Check, CameraOff } from 'lucide-react';
+import { Loader2, ReceiptText, FileText, Book, BookOpen, FileSearch, Check, CameraOff, ScanLine, Sparkles } from 'lucide-react';
 import { isGeminiQuotaError } from '../lib/geminiErrors';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -15,6 +15,29 @@ const SCAN_TYPES = [
   { id: 'Bank Invoice', icon: FileText, priority: 'optional' },
   { id: 'Website Page', icon: FileSearch, priority: 'optional' },
 ];
+
+const SCAN_GUIDANCE: Record<string, { title: string; hint: string }> = {
+  'Front Cover': {
+    title: 'Scan the front cover',
+    hint: 'Center the book title and author inside the frame.',
+  },
+  'Back Cover': {
+    title: 'Scan the back cover',
+    hint: 'Flip the book and keep the full back page visible.',
+  },
+  'Receipt': {
+    title: 'Scan receipt',
+    hint: 'Place the full document in view with readable text.',
+  },
+  'Bank Invoice': {
+    title: 'Scan bank invoice',
+    hint: 'Keep the paper flat and avoid glare.',
+  },
+  'Website Page': {
+    title: 'Scan website page',
+    hint: 'Hold the screen steady and reduce reflections.',
+  },
+};
 
 type FrontCoverScanResult = {
   detected: boolean;
@@ -66,6 +89,7 @@ export default function SellScreen() {
   const [frontCoverImage, setFrontCoverImage] = useState<string | null>(null);
   const [backCoverImage, setBackCoverImage] = useState<string | null>(null);
   const [receiptImage, setReceiptImage] = useState<string | null>(null);
+  const [lastDetectionMessage, setLastDetectionMessage] = useState('AI is ready to scan when the book is centered.');
   
   const frontCoverRef = useRef<string | null>(null);
   const backCoverRef = useRef<string | null>(null);
@@ -74,6 +98,7 @@ export default function SellScreen() {
 
   // Get active index for dynamic layout
   const activeIndex = useMemo(() => SCAN_TYPES.findIndex(t => t.id === activeTab), [activeTab]);
+  const activeGuidance = SCAN_GUIDANCE[activeTab] || SCAN_GUIDANCE['Front Cover'];
 
   const getImageForType = (typeId: string) => {
     switch (typeId) {
@@ -117,6 +142,19 @@ export default function SellScreen() {
       });
     }
   }, [activeIndex]);
+
+  useEffect(() => {
+    setLastDetectionMessage(activeGuidance.hint);
+  }, [activeGuidance.hint]);
+
+  const goToEditScreen = useCallback((backImageSrc?: string | null) => {
+    navigate('/sell/edit', {
+      state: {
+        images: [frontCoverRef.current, backImageSrc ?? backCoverRef.current, receiptRef.current].filter(Boolean),
+        frontCoverData: frontCoverData || buildFallbackFrontCoverData(),
+      }
+    });
+  }, [buildFallbackFrontCoverData, frontCoverData, navigate]);
 
   const analyzeFrontCover = useCallback(async (base64String: string) => {
     const ai = getGeminiAI();
@@ -206,16 +244,13 @@ export default function SellScreen() {
             setFrontCoverData(fallbackData);
             setFrontCoverImage(imageSrc);
             frontCoverRef.current = imageSrc;
+            setLastDetectionMessage('Front cover captured. Now scan the back cover.');
             setActiveTab('Back Cover');
           } else if (activeTab === 'Back Cover') {
             setBackCoverImage(imageSrc);
             backCoverRef.current = imageSrc;
-            navigate('/sell/edit', {
-              state: {
-                images: [frontCoverRef.current, imageSrc, receiptRef.current].filter(Boolean),
-                frontCoverData: frontCoverData || buildFallbackFrontCoverData(),
-              }
-            });
+            setLastDetectionMessage('Back cover captured. Review and adjust your photos.');
+            goToEditScreen(imageSrc);
           } else if (activeTab === 'Receipt') {
             setReceiptImage(imageSrc);
             receiptRef.current = imageSrc;
@@ -229,6 +264,7 @@ export default function SellScreen() {
 
         if (data?.detected) {
           setError('');
+          setLastDetectionMessage('Front cover detected. Preparing the next scan.');
           setFrontCoverData({
             title: data.title?.trim() || 'Untitled Book',
             author: data.author?.trim() || 'Unknown Author',
@@ -249,56 +285,59 @@ export default function SellScreen() {
           setFrontCoverData(fallbackData);
           setFrontCoverImage(imageSrc);
           frontCoverRef.current = imageSrc;
+          setLastDetectionMessage('Front cover captured manually. Next: back cover.');
           setActiveTab('Back Cover');
         } else if (!data) {
           setError('AI scan returned an unreadable result. Tap the shutter to continue manually.');
+          setLastDetectionMessage('The AI could not read this frame. Try moving closer or tapping the shutter.');
+        } else {
+          setLastDetectionMessage('No clear front cover yet. Keep the whole cover inside the guide.');
         }
       } else if (activeTab === 'Back Cover') {
         const data = await analyzeBackCover(base64String);
 
         if (data?.detected) {
           setError('');
+          setLastDetectionMessage('Back cover detected. Opening review.');
           setBackCoverImage(imageSrc);
           backCoverRef.current = imageSrc;
           setTimeout(() => {
-            navigate('/sell/edit', { 
-              state: { 
-                images: [frontCoverRef.current, imageSrc, receiptRef.current].filter(Boolean), 
-                frontCoverData: frontCoverData || buildFallbackFrontCoverData()
-              } 
-            });
+            goToEditScreen(imageSrc);
           }, 1500); 
         } else if (isManual) {
           setBackCoverImage(imageSrc);
           backCoverRef.current = imageSrc;
-          navigate('/sell/edit', {
-            state: {
-              images: [frontCoverRef.current, imageSrc, receiptRef.current].filter(Boolean),
-              frontCoverData: frontCoverData || buildFallbackFrontCoverData(),
-            }
-          });
+          setLastDetectionMessage('Back cover captured manually. Opening review.');
+          goToEditScreen(imageSrc);
         } else if (!data) {
           setError('AI scan returned an unreadable result. Tap the shutter to continue manually.');
+          setLastDetectionMessage('The AI could not read this frame. Try pulling the book slightly closer.');
+        } else {
+          setLastDetectionMessage('No clear back cover yet. Keep the full back page inside the guide.');
         }
       } else if (activeTab === 'Receipt') {
         setReceiptImage(imageSrc);
         receiptRef.current = imageSrc;
+        setLastDetectionMessage('Receipt captured.');
       }
     } catch (err: any) {
       console.error(err);
       if (isGeminiQuotaError(err)) {
         setAutoScanEnabled(false);
         setError('Gemini API quota exceeded. Please try again in 1 minute or use a different network.');
+        setLastDetectionMessage('Auto scan paused because the AI quota was hit.');
       } else if (isManual) {
         setError('Failed to scan. Please try again with better lighting.');
+        setLastDetectionMessage('Manual capture failed. Try brighter light and less glare.');
       } else {
         setError('Automatic AI scan failed. Tap the shutter to continue manually.');
+        setLastDetectionMessage('Automatic scan failed. You can still capture manually.');
       }
     } finally {
       isScanningRef.current = false;
       setIsScanning(false);
     }
-  }, [activeTab, analyzeBackCover, analyzeFrontCover, buildFallbackFrontCoverData, cameraReady, frontCoverData, listingType, navigate]);
+  }, [activeTab, analyzeBackCover, analyzeFrontCover, buildFallbackFrontCoverData, cameraReady, frontCoverData, goToEditScreen, listingType, navigate]);
 
   useEffect(() => {
     let timeoutId: NodeJS.Timeout;
@@ -378,18 +417,36 @@ export default function SellScreen() {
 
       {/* Main Content Area */}
       <div className="flex-1 relative flex flex-col items-center justify-center min-h-0 px-6">
+        <div className="w-full max-w-md mb-4 rounded-[28px] border border-white/15 bg-black/20 backdrop-blur-md px-5 py-4 shadow-xl">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2 text-[#7FE2C4] text-[11px] font-black uppercase tracking-[0.18em] mb-2">
+                <ScanLine className="w-4 h-4" />
+                Automatic Scan
+              </div>
+              <h2 className="text-lg font-bold text-white leading-tight">{activeGuidance.title}</h2>
+              <p className="text-sm text-white/75 mt-1">{lastDetectionMessage}</p>
+            </div>
+            <div className={`shrink-0 rounded-full px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.16em] border ${isScanning ? 'bg-[#32B38B] text-white border-[#6FE0BE]' : 'bg-white/8 text-white/70 border-white/15'}`}>
+              {isScanning ? 'Detecting' : 'Ready'}
+            </div>
+          </div>
+        </div>
+
         {/* Scanning Box */}
         <motion.div 
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
-          className="relative w-full aspect-[9/18] max-w-sm rounded-[50px] overflow-hidden shadow-[0_40px_100px_rgba(0,0,0,0.5)] border border-white/10 bg-black/20"
+          className="relative w-full max-w-md md:max-w-lg aspect-[3/4] min-h-[480px] rounded-[42px] overflow-hidden shadow-[0_40px_100px_rgba(0,0,0,0.5)] border border-white/10 bg-black/20"
         >
           <Webcam
             audio={false}
             ref={webcamRef}
             screenshotFormat="image/jpeg"
-            screenshotQuality={0.92}
-            videoConstraints={{ facingMode: "environment" }}
+            screenshotQuality={0.98}
+            minScreenshotWidth={1440}
+            minScreenshotHeight={1920}
+            videoConstraints={{ facingMode: "environment", aspectRatio: 0.75 }}
             onUserMedia={() => {
               setCameraReady(true);
               setCameraError('');
@@ -413,10 +470,19 @@ export default function SellScreen() {
           
           {/* Corner Brackets */}
           <div className="absolute inset-0 pointer-events-none">
-            <div className="absolute top-10 left-10 w-16 h-16 border-t-[5px] border-l-[5px] border-white rounded-tl-[32px] opacity-90"></div>
-            <div className="absolute top-10 right-10 w-16 h-16 border-t-[5px] border-r-[5px] border-white rounded-tr-[32px] opacity-90"></div>
-            <div className="absolute bottom-10 left-10 w-16 h-16 border-b-[5px] border-l-[5px] border-white rounded-bl-[32px] opacity-90"></div>
-            <div className="absolute bottom-10 right-10 w-16 h-16 border-b-[5px] border-r-[5px] border-white rounded-br-[32px] opacity-90"></div>
+            <div className="absolute inset-x-[8%] top-[18%] bottom-[20%] rounded-[34px] border border-white/20 bg-black/10 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.06)]" />
+            <div className="absolute inset-x-[8%] top-[18%] bottom-[20%] rounded-[34px]">
+              <div className="absolute top-0 left-0 w-20 h-20 border-t-[5px] border-l-[5px] border-white rounded-tl-[28px] opacity-95"></div>
+              <div className="absolute top-0 right-0 w-20 h-20 border-t-[5px] border-r-[5px] border-white rounded-tr-[28px] opacity-95"></div>
+              <div className="absolute bottom-0 left-0 w-20 h-20 border-b-[5px] border-l-[5px] border-white rounded-bl-[28px] opacity-95"></div>
+              <div className="absolute bottom-0 right-0 w-20 h-20 border-b-[5px] border-r-[5px] border-white rounded-br-[28px] opacity-95"></div>
+            </div>
+            <div className="absolute left-1/2 top-[14%] -translate-x-1/2 rounded-full bg-black/55 border border-white/15 px-4 py-2 text-[11px] font-bold text-white/85 backdrop-blur-md">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-3.5 h-3.5 text-[#7FE2C4]" />
+                {activeGuidance.hint}
+              </div>
+            </div>
           </div>
 
           <AnimatePresence>
@@ -447,11 +513,11 @@ export default function SellScreen() {
       </div>
 
       {/* Bottom Interface */}
-      <div className="relative pb-10 pt-4 shrink-0 overflow-hidden bg-gradient-to-t from-black/20 to-transparent">
+      <div className="relative pb-8 pt-3 shrink-0 overflow-hidden bg-gradient-to-t from-black/35 to-transparent">
         {/* Carousel Area */}
         <div 
           ref={scrollRef}
-          className="flex overflow-x-auto hide-scrollbar snap-x snap-mandatory gap-4 px-[40%] py-6 h-52 items-center relative z-10"
+          className="flex overflow-x-auto hide-scrollbar snap-x snap-mandatory gap-4 px-[32%] py-4 h-44 items-center relative z-10"
         >
           {SCAN_TYPES.map((type, index) => {
             const isActive = activeTab === type.id;
@@ -460,8 +526,8 @@ export default function SellScreen() {
             const scannedImage = getImageForType(type.id);
             
             // Animation values based on proximity to center
-            const scale = isActive ? 1.25 : 0.85;
-            const opacity = isActive ? 1 : 0.4;
+            const scale = isActive ? 1.14 : 0.84;
+            const opacity = isActive ? 1 : 0.46;
             const brightness = isActive ? 'brightness(1.1)' : 'brightness(0.7)';
             const zIndex = isActive ? 50 : 50 - Math.abs(diff);
 
@@ -481,24 +547,24 @@ export default function SellScreen() {
                   duration: 0.4, 
                   ease: "easeInOut"
                 }}
-                className={`snap-center shrink-0 w-16 h-24 flex flex-col items-center justify-center gap-1.5 relative rounded-[22px] border transition-all duration-300 ${
+                className={`snap-center shrink-0 w-[72px] h-[104px] flex flex-col items-center justify-center gap-1.5 relative rounded-[24px] border transition-all duration-300 ${
                   isActive 
-                    ? 'bg-white/90 backdrop-blur-md border-white shadow-[0_12px_30px_rgba(0,0,0,0.3)]' 
-                    : 'bg-white/5 border-white/5'
+                    ? 'bg-white/95 backdrop-blur-md border-white shadow-[0_16px_36px_rgba(0,0,0,0.28)]' 
+                    : 'bg-white/7 border-white/8'
                 }`}
               >
                 {/* Foreground Content */}
-                <div className="relative z-10 flex flex-col items-center gap-1.5 w-full h-full p-1.5">
-                  <div className={`w-full h-[70%] rounded-[16px] flex items-center justify-center overflow-hidden transition-colors ${
+                <div className="relative z-10 flex flex-col items-center gap-1.5 w-full h-full p-2">
+                  <div className={`w-full h-[68%] rounded-[18px] flex items-center justify-center overflow-hidden transition-colors ${
                     isActive ? 'bg-[#E8F5F0]' : 'bg-black/5'
                   }`}>
                     {scannedImage ? (
                       <img src={scannedImage} alt="Thumbnail" className="w-full h-full object-cover" />
                     ) : (
-                      <Icon className={`w-4 h-4 transition-colors ${isActive ? 'text-[#1A8765]' : 'text-white/60'}`} />
+                      <Icon className={`w-[18px] h-[18px] transition-colors ${isActive ? 'text-[#1A8765]' : 'text-white/60'}`} />
                     )}
                   </div>
-                  <span className={`text-[6px] font-black text-center leading-tight uppercase tracking-[0.1em] transition-colors ${
+                  <span className={`text-[7px] font-black text-center leading-tight uppercase tracking-[0.14em] transition-colors ${
                     isActive ? 'text-[#1A8765]' : 'text-white/40'
                   }`}>
                     {type.id === 'Website Page' ? 'Web' : type.id.split(' ')[0]}
@@ -520,32 +586,44 @@ export default function SellScreen() {
         </div>
 
         {/* Action Controls */}
-        <div className="flex justify-center items-center gap-10 mt-2 px-10 relative z-10">
-          <div className="w-14 h-14" /> {/* Spacer */}
+        <div className="mx-5 mt-2 rounded-[30px] border border-white/10 bg-black/20 backdrop-blur-xl px-5 py-4 shadow-[0_24px_50px_rgba(0,0,0,0.25)] relative z-10">
+          <div className="flex items-center justify-between gap-4">
+            <motion.button 
+              whileTap={{ scale: 0.96 }}
+              onClick={() => navigate('/sell/edit', { 
+                state: { 
+                  images: [frontCoverRef.current, backCoverRef.current, receiptRef.current].filter(Boolean), 
+                  frontCoverData 
+                } 
+              })}
+              className="flex h-14 min-w-[72px] items-center justify-center rounded-2xl border border-white/15 bg-white/12 px-4 text-[11px] font-black uppercase tracking-[0.16em] text-white shadow-lg"
+            >
+              Next
+            </motion.button>
 
-          <motion.button 
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={handleManualCapture}
-            disabled={isScanning || !!cameraError}
-            className="relative w-20 h-20 rounded-full border-[5px] border-white/40 flex items-center justify-center p-1 group disabled:opacity-50"
-          >
-            <div className="w-full h-full bg-white rounded-full shadow-[0_0_30px_rgba(255,255,255,0.4)] group-active:scale-95 transition-transform" />
-            <div className="absolute inset-2 border-2 border-[#1A8765]/20 rounded-full" />
-          </motion.button>
+            <div className="flex flex-col items-center">
+              <motion.button 
+                whileHover={{ scale: 1.04 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={handleManualCapture}
+                disabled={isScanning || !!cameraError}
+                className="relative w-24 h-24 rounded-full border-[6px] border-white/35 flex items-center justify-center p-1.5 group disabled:opacity-50 shadow-[0_0_0_10px_rgba(255,255,255,0.08)]"
+              >
+                <div className="w-full h-full bg-white rounded-full shadow-[0_0_30px_rgba(255,255,255,0.38)] group-active:scale-95 transition-transform" />
+                <div className="absolute inset-2.5 border-2 border-[#1A8765]/18 rounded-full" />
+              </motion.button>
+              <span className="mt-3 text-[10px] font-black uppercase tracking-[0.18em] text-white/70">
+                Tap To Capture
+              </span>
+            </div>
 
-          <motion.button 
-            whileTap={{ scale: 0.9 }}
-            onClick={() => navigate('/sell/edit', { 
-              state: { 
-                images: [frontCoverRef.current, backCoverRef.current, receiptRef.current].filter(Boolean), 
-                frontCoverData 
-              } 
-            })}
-            className="w-14 h-14 bg-white text-[#1A8765] rounded-2xl flex items-center justify-center shadow-2xl font-bold text-xs"
-          >
-            NEXT
-          </motion.button>
+            <div className="flex min-w-[72px] justify-end">
+              <div className="rounded-2xl border border-white/12 bg-white/8 px-3 py-2.5 text-right shadow-lg">
+                <div className="text-[9px] font-black uppercase tracking-[0.16em] text-white/55">Mode</div>
+                <div className="mt-1 text-[11px] font-bold text-white">{activeTab}</div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
       
